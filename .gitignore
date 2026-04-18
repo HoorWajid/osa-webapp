@@ -1,0 +1,39 @@
+﻿# Environment & secrets — NEVER commit these
+.env
+.env.*
+!.env.example
+# Database files — contain patient PHI
+instance/
+*.db
+*.sqlite
+*.sqlite3
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+# Virtual environment
+venv/
+env/
+.venv/
+# ML model files — large binaries, regenerate from training
+app/ml_models/*.pkl
+# Uploaded patient files — PHI, never in git
+app/uploads/
+uploads/
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+# OS
+.DS_Store
+Thumbs.db
+# Logs
+*.log
+logs/
