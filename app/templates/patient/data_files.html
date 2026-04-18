@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}My Data Files{% endblock %}
+{% block page_title %}My Data Files{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <h2 class="mb-0"><i class="bi bi-file-earmark-spreadsheet text-primary me-2"></i>My Data Files</h2>
+    <a href="{{ url_for('patient.upload_data_file') }}" class="btn btn-primary">
+        <i class="bi bi-cloud-upload me-1"></i> Upload New File
+    </a>
+</div>
+
+{% if data_files %}
+<div class="row g-3">
+    {% for data_file in data_files %}
+    <div class="col-md-6 col-xl-4">
+        <div class="card h-100 shadow-sm">
+
+            <!-- Card header with file type icon -->
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    {% if data_file.file_type == 'edf' %}
+                        <i class="bi bi-activity text-primary fs-5"></i>
+                    {% elif data_file.file_type == 'excel' %}
+                        <i class="bi bi-file-earmark-excel text-success fs-5"></i>
+                    {% else %}
+                        <i class="bi bi-filetype-csv text-info fs-5"></i>
+                    {% endif %}
+                    <span class="text-truncate" style="max-width:160px;" title="{{ data_file.original_filename }}">
+                        {{ data_file.original_filename }}
+                    </span>
+                </div>
+                <span class="badge bg-secondary ms-1">{{ data_file.file_type.upper() }}</span>
+            </div>
+
+            <div class="card-body pb-2">
+                <!-- Meta row -->
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <small class="text-muted d-block">Uploaded</small>
+                        <strong style="font-size:0.85rem;">{{ data_file.upload_date.strftime('%Y-%m-%d') }}</strong>
+                        <small class="text-muted d-block">{{ data_file.upload_date.strftime('%H:%M') }}</small>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">File Size</small>
+                        <strong style="font-size:0.85rem;">{{ "%.2f"|format(data_file.file_size / (1024*1024)) }} MB</strong>
+                    </div>
+                    <div class="col-12">
+                        <small class="text-muted d-block">Status</small>
+                        {% if data_file.status == 'uploaded' %}
+                            <span class="badge bg-info">Ready for Analysis</span>
+                        {% elif data_file.status == 'processing' %}
+                            <span class="badge bg-warning">
+                                <span class="spinner-border spinner-border-sm me-1" style="width:10px;height:10px;"></span>
+                                Processing
+                            </span>
+                        {% elif data_file.status == 'completed' %}
+                            <span class="badge bg-success">Completed</span>
+                        {% elif data_file.status == 'failed' %}
+                            <span class="badge bg-danger">Failed</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ data_file.status }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Analysis result -->
+                {% if data_file.analysis %}
+                    <div class="rounded-3 p-2 mb-2
+                        {% if data_file.analysis.osa_detected %}
+                            bg-warning bg-opacity-10 border border-warning
+                        {% else %}
+                            bg-success bg-opacity-10 border border-success
+                        {% endif %}">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-{{ 'exclamation-triangle-fill text-warning' if data_file.analysis.osa_detected else 'check-circle-fill text-success' }} fs-5"></i>
+                            <div>
+                                <strong style="font-size:0.85rem;">
+                                    {{ 'OSA Detected' if data_file.analysis.osa_detected else 'No OSA Detected' }}
+                                </strong>
+                                <small class="d-block text-muted">
+                                    Severity: {{ data_file.analysis.severity.title() }} &nbsp;·&nbsp;
+                                    AHI: {{ "%.1f"|format(data_file.analysis.ahi_score) }}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                {% elif data_file.status == 'failed' %}
+                    <div class="rounded-3 p-2 mb-2 bg-danger bg-opacity-10 border border-danger">
+                        <i class="bi bi-x-circle-fill text-danger me-1"></i>
+                        <small><strong>Analysis failed.</strong>
+                            <a href="{{ url_for('patient.data_file_detail', file_id=data_file.id) }}"
+                               class="text-danger">Retry</a>
+                        </small>
+                    </div>
+                {% else %}
+                    <div class="rounded-3 p-2 mb-2 bg-info bg-opacity-10 border border-info">
+                        <i class="bi bi-hourglass-split text-info me-1"></i>
+                        <small>Not yet analyzed.</small>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Card footer with actions -->
+            <div class="card-footer bg-transparent pt-0 pb-3 px-3">
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('patient.data_file_detail', file_id=data_file.id) }}"
+                       class="btn btn-primary btn-sm flex-grow-1">
+                        <i class="bi bi-eye me-1"></i> View Details
+                    </a>
+
+                    <!-- Delete button -->
+                    <button type="button" class="btn btn-danger btn-sm btn-delete"
+                            data-file-id="{{ data_file.id }}"
+                            data-file-name="{{ data_file.original_filename }}"
+                            title="Delete file">
+                        <i class="bi bi-trash3"></i>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="card shadow text-center py-5">
+    <div class="card-body">
+        <i class="bi bi-inbox" style="font-size:4rem; color:#ccc;"></i>
+        <h4 class="mt-3">No Data Files Yet</h4>
+        <p class="text-muted">Upload your first PSG (.edf), CSV, or Excel file to get started.</p>
+        <a href="{{ url_for('patient.upload_data_file') }}" class="btn btn-primary btn-lg">
+            <i class="bi bi-cloud-upload me-1"></i> Upload Your First File
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Delete confirmation modal ── -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px; border:none;">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title text-danger">
+                    <i class="bi bi-trash3 me-2"></i>Delete File
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-1">Are you sure you want to permanently delete:</p>
+                <p class="fw-bold" id="deleteFileName" style="color:var(--teal-dark);"></p>
+                <div class="alert alert-danger py-2 mb-0">
+                    <small><i class="bi bi-exclamation-triangle me-1"></i>
+                    This will also delete any analysis results. This action cannot be undone.</small>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteForm" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash3 me-1"></i>Yes, Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/data_files.js') }}"></script>
+{% endblock %}

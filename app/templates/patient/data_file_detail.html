@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% block title %}File Details — {{ data_file.original_filename | e }}{% endblock %}
+{% block page_title %}File Details{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-2">
+        {% if data_file.file_type == 'edf' %}
+            <i class="bi bi-activity text-primary fs-4"></i>
+        {% elif data_file.file_type == 'excel' %}
+            <i class="bi bi-file-earmark-excel text-success fs-4"></i>
+        {% else %}
+            <i class="bi bi-filetype-csv text-info fs-4"></i>
+        {% endif %}
+        <h2 class="mb-0" style="font-size:1.3rem;">{{ data_file.original_filename | e }}</h2>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('patient.my_data_files') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i> All Files
+        </a>
+        {#
+          SECURITY FIX: data-file-name is Jinja2-escaped (Jinja2 auto-escapes attribute values).
+          The consuming JS (data_file_detail.js) MUST use element.textContent (not innerHTML)
+          when inserting this value into the DOM to prevent XSS on filenames like
+          <img src=x onerror=alert(1)>.
+        #}
+        <button type="button" class="btn btn-danger btn-sm btn-delete"
+                data-file-id="{{ data_file.id }}"
+                data-file-name="{{ data_file.original_filename | e }}">
+            <i class="bi bi-trash3 me-1"></i> Delete File
+        </button>
+    </div>
+</div>
+
+<div class="row g-4">
+
+    <!-- File info -->
+    <div class="col-md-5">
+        <div class="card shadow h-100">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-2"></i>File Information
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-5 text-muted fw-normal small">File Name</dt>
+                    <dd class="col-7 fw-bold" style="word-break:break-all;">{{ data_file.original_filename | e }}</dd>
+
+                    <dt class="col-5 text-muted fw-normal small">File Type</dt>
+                    <dd class="col-7">
+                        <span class="badge bg-secondary">{{ data_file.file_type | upper | e }}</span>
+                    </dd>
+
+                    <dt class="col-5 text-muted fw-normal small">File Size</dt>
+                    <dd class="col-7 fw-bold">{{ "%.2f"|format(data_file.file_size / (1024*1024)) }} MB</dd>
+
+                    <dt class="col-5 text-muted fw-normal small">Upload Date</dt>
+                    <dd class="col-7">
+                        <strong>{{ data_file.upload_date.strftime('%Y-%m-%d') }}</strong>
+                        <small class="text-muted d-block">{{ data_file.upload_date.strftime('%H:%M:%S') }}</small>
+                    </dd>
+
+                    <dt class="col-5 text-muted fw-normal small">Status</dt>
+                    <dd class="col-7">
+                        {% if data_file.status == 'uploaded' %}
+                            <span class="badge bg-info">Ready for Analysis</span>
+                        {% elif data_file.status == 'processing' %}
+                            <span class="badge bg-warning">Processing</span>
+                        {% elif data_file.status == 'completed' %}
+                            <span class="badge bg-success">Completed</span>
+                        {% elif data_file.status == 'failed' %}
+                            <span class="badge bg-danger">Failed</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ data_file.status | e }}</span>
+                        {% endif %}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis results -->
+    <div class="col-md-7">
+        <div class="card shadow h-100">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-graph-up me-2"></i>Analysis Results</span>
+                {% if data_file.analysis %}
+                    <small class="text-muted">
+                        Completed {{ data_file.analysis.completed_at.strftime('%Y-%m-%d %H:%M') if data_file.analysis.completed_at else '' }}
+                    </small>
+                {% endif %}
+            </div>
+            <div class="card-body">
+
+                {% if data_file.analysis %}
+                <div class="alert alert-{{ 'warning' if data_file.analysis.osa_detected else 'success' }} mb-3">
+                    <h5 class="mb-2">
+                        <i class="bi bi-{{ 'exclamation-triangle-fill' if data_file.analysis.osa_detected else 'check-circle-fill' }} me-2"></i>
+                        {{ 'OSA Detected' if data_file.analysis.osa_detected else 'No OSA Detected' }}
+                    </h5>
+                    <div class="row g-2">
+                        <div class="col-6 col-sm-4">
+                            <small class="text-muted d-block">Severity</small>
+                            <strong>{{ data_file.analysis.severity | title | e }}</strong>
+                        </div>
+                        <div class="col-6 col-sm-4">
+                            <small class="text-muted d-block">Confidence</small>
+                            <strong>{{ "%.1f"|format(data_file.analysis.confidence_score * 100) }}%</strong>
+                        </div>
+                        <div class="col-6 col-sm-4">
+                            <small class="text-muted d-block">AHI Score</small>
+                            <strong>{{ "%.1f"|format(data_file.analysis.ahi_score) }}</strong>
+                        </div>
+                        <div class="col-6 col-sm-4">
+                            <small class="text-muted d-block">Apnea Events</small>
+                            <strong>{{ data_file.analysis.apnea_events or 0 }}</strong>
+                        </div>
+                        <div class="col-6 col-sm-4">
+                            <small class="text-muted d-block">Hypopnea Events</small>
+                            <strong>{{ data_file.analysis.hypopnea_events or 0 }}</strong>
+                        </div>
+                        <div class="col-6 col-sm-4">
+                            <small class="text-muted d-block">O₂ Desat.</small>
+                            <strong>{{ "%.1f"|format(data_file.analysis.oxygen_desaturation or 0) }}%</strong>
+                        </div>
+                    </div>
+                </div>
+
+                {% if data_file.analysis.doctor_notes %}
+                <div class="card bg-light mb-3">
+                    <div class="card-body py-2 px-3">
+                        <h6 class="mb-1"><i class="bi bi-person-badge me-1"></i>Doctor's Notes</h6>
+                        {# SECURITY FIX: explicit | e escaping on doctor-entered text #}
+                        <p class="mb-0 small">{{ data_file.analysis.doctor_notes | e }}</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if data_file.analysis.recommendations %}
+                <div class="card border-info mb-0">
+                    <div class="card-body py-2 px-3">
+                        <h6 class="mb-1" style="color:var(--teal-dark);"><i class="bi bi-lightbulb me-1"></i>Recommendations</h6>
+                        {# SECURITY FIX: explicit | e escaping on doctor-entered text #}
+                        <p class="mb-0 small">{{ data_file.analysis.recommendations | e }}</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% elif data_file.status == 'processing' %}
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary mb-3"></div>
+                    <h5>Analysis In Progress</h5>
+                    <p class="text-muted small">This may take a moment. Refresh the page to check for updates.</p>
+                    <button id="btnRefresh" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    </button>
+                </div>
+
+                {% elif data_file.status == 'failed' %}
+                <div class="text-center py-4">
+                    <i class="bi bi-exclamation-circle-fill text-danger" style="font-size:3rem;"></i>
+                    <h5 class="mt-3 text-danger">Analysis Failed</h5>
+                    <p class="text-muted small mb-4">
+                        Something went wrong during processing. Your file is safely stored —
+                        you can retry without uploading again.
+                    </p>
+                    <form action="{{ url_for('patient.retry_analysis', file_id=data_file.id) }}" method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-arrow-clockwise me-2"></i>Retry Analysis
+                        </button>
+                    </form>
+                    <p class="text-muted small mt-3">
+                        If the problem persists, check that your file is a valid EDF or CSV format.
+                    </p>
+                </div>
+
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-cpu" style="font-size:3rem; color:var(--teal-light);"></i>
+                    <h5 class="mt-3">Ready for Analysis</h5>
+                    <p class="text-muted small mb-4">
+                        Click below to run the ML analysis on this file.
+                    </p>
+                    <a href="{{ url_for('patient.analyze_file', file_id=data_file.id) }}"
+                       class="btn btn-primary btn-lg">
+                        <i class="bi bi-cpu me-2"></i>Run Analysis Now
+                    </a>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if data_file.analysis %}
+<div class="row g-3 mt-2">
+    <div class="col-6 col-md-3">
+        <div class="card text-center py-3">
+            <h3 class="text-primary mb-0">{{ "%.1f"|format(data_file.analysis.ahi_score) }}</h3>
+            <small class="text-muted">AHI Score</small>
+            <div>
+                {% if data_file.analysis.ahi_score < 5 %}<span class="badge bg-success mt-1">Normal</span>
+                {% elif data_file.analysis.ahi_score < 15 %}<span class="badge bg-warning mt-1">Mild</span>
+                {% elif data_file.analysis.ahi_score < 30 %}<span class="badge bg-primary mt-1">Moderate</span>
+                {% else %}<span class="badge bg-danger mt-1">Severe</span>{% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center py-3">
+            <h3 class="text-info mb-0">{{ data_file.analysis.apnea_events or 0 }}</h3>
+            <small class="text-muted">Apnea Events</small>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center py-3">
+            <h3 class="text-warning mb-0">{{ data_file.analysis.hypopnea_events or 0 }}</h3>
+            <small class="text-muted">Hypopnea Events</small>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center py-3">
+            <h3 class="text-success mb-0">{{ "%.1f"|format(data_file.analysis.confidence_score * 100) }}%</h3>
+            <small class="text-muted">Confidence</small>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-body">
+        <h6 class="mb-2">AHI Severity Scale</h6>
+        <div class="progress mb-1" style="height:22px;">
+            <div class="progress-bar bg-success" style="width:25%;">Normal (&lt;5)</div>
+            <div class="progress-bar bg-warning" style="width:25%;">Mild (5–14)</div>
+            <div class="progress-bar" style="width:25%;background:#fd7e14;">Moderate (15–29)</div>
+            <div class="progress-bar bg-danger" style="width:25%;">Severe (&ge;30)</div>
+        </div>
+        <small class="text-muted">
+            Your AHI: <strong>{{ "%.1f"|format(data_file.analysis.ahi_score) }}</strong> —
+            <strong>{{ data_file.analysis.severity | title | e }}</strong>
+        </small>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-header">
+        <i class="bi bi-bar-chart-line me-2"></i>Visualizations &amp; Reports
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">Deep-dive into HRV trends, SpO₂ patterns, and generate a full downloadable report.</p>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('patient.viz_hrv', file_id=data_file.id) }}" class="btn btn-outline-primary">
+                <i class="bi bi-heart-pulse me-2"></i>HRV Trend Analysis
+            </a>
+            <a href="{{ url_for('patient.viz_spo2', file_id=data_file.id) }}" class="btn btn-outline-primary">
+                <i class="bi bi-lungs me-2"></i>SpO₂ Trend Analysis
+            </a>
+            <a href="{{ url_for('patient.viz_report', file_id=data_file.id) }}" class="btn btn-primary">
+                <i class="bi bi-file-medical me-2"></i>Full Report &amp; Download
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Delete confirmation modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;border:none;">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title text-danger"><i class="bi bi-trash3 me-2"></i>Delete File</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-1">Permanently delete:</p>
+                {#
+                  SECURITY FIX: id="deleteFileName" is populated by data_file_detail.js.
+                  That JS MUST use element.textContent = filename (not innerHTML)
+                  to prevent XSS from a crafted filename.
+                #}
+                <p class="fw-bold" id="deleteFileName" style="color:var(--teal-dark);"></p>
+                <div class="alert alert-danger py-2 mb-0">
+                    <small><i class="bi bi-exclamation-triangle me-1"></i>
+                    This will also delete all analysis results. This action cannot be undone.</small>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteForm" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash3 me-1"></i>Yes, Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/data_file_detail.js') }}"></script>
+{% endblock %}

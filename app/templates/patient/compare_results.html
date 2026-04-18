@@ -1,0 +1,546 @@
+{% extends "base.html" %}
+{% block title %}My Progress — Analysis Trends{% endblock %}
+{% block page_title %}My Analysis Progress{% endblock %}
+
+{% block extra_css %}
+<style nonce="{{ csp_nonce() }}">
+.db-section-label {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-muted);
+    margin: 1.75rem 0 0.75rem; padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border);
+}
+.metric-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.mcard { background: var(--bg-page); border-radius: 10px; padding: 0.9rem 1rem; border: 1px solid var(--border); }
+.mcard .mlabel { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+.mcard .mval { font-size: 1.4rem; font-weight: 700; color: var(--teal-dark); line-height: 1.1; }
+.mcard .msub { font-size: 0.72rem; color: var(--text-muted); margin-top: 3px; }
+.mcard .mdelta { font-size: 0.72rem; font-weight: 600; margin-top: 4px; }
+.chart-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem 1.4rem; margin-bottom: 1rem; }
+.chart-card-title { font-size: 0.88rem; font-weight: 600; color: var(--text-dark); margin-bottom: 3px; }
+.chart-card-sub { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem; }
+.leg { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 8px; }
+.leg-item { display: flex; align-items: center; gap: 5px; }
+.leg-sq { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.trend-up-bad   { color: #dc3545; font-weight: 600; }
+.trend-down-good{ color: #198754; font-weight: 600; }
+.trend-up-good  { color: #198754; font-weight: 600; }
+.trend-down-bad { color: #dc3545; font-weight: 600; }
+.trend-same     { color: var(--text-muted); }
+.session-table  { width: 100%; font-size: 0.78rem; border-collapse: collapse; }
+.session-table th { font-weight: 600; color: var(--text-muted); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.session-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.no-data-state  { text-align: center; padding: 4rem 2rem; color: var(--text-muted); }
+.ahi-severe   { color: #dc3545; }
+.ahi-moderate { color: #fd7e14; }
+.ahi-mild     { color: #0d6efd; }
+.ahi-normal   { color: #198754; }
+.spo2-danger  { color: #dc3545; }
+.spo2-warning { color: #fd7e14; }
+.spo2-ok      { color: #198754; }
+@media (max-width: 640px) { .chart-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if total == 0 %}
+<div class="no-data-state">
+    <i class="bi bi-bar-chart-line" style="font-size:3rem;opacity:0.3;display:block;margin-bottom:1rem;"></i>
+    <h5>No analysis sessions yet</h5>
+    <p class="mt-2">Upload and analyse at least one file to see your progress here.</p>
+    <a href="{{ url_for('patient.upload_data_file') }}" class="btn btn-primary mt-3">
+        <i class="bi bi-upload me-2"></i>Upload a File
+    </a>
+</div>
+
+{% elif total == 1 %}
+<div class="alert alert-info d-flex gap-3 align-items-start mb-4" style="border-radius:12px;">
+    <i class="bi bi-info-circle-fill fs-4 flex-shrink-0 mt-1"></i>
+    <div>
+        <strong>One session recorded.</strong>
+        Trend charts will appear after your second analysis is complete.
+        Your first session baseline is shown below.
+    </div>
+</div>
+{% endif %}
+
+{% if total > 0 %}
+{# ── Inject session data for Chart.js ── #}
+<script id="sessionData" type="application/json" nonce="{{ csp_nonce() }}">{{ analyses_json | safe }}</script>
+
+{# ── Latest session summary cards ── #}
+{% set latest = sessions[-1] %}
+{% set prev = sessions[-2] if total > 1 else none %}
+
+<div class="db-section-label">Latest session — {{ latest.date_full }}</div>
+<div class="metric-row mb-4">
+    {% set sev_colors = {'normal':'bg-success','mild':'bg-info text-dark','moderate':'bg-warning text-dark','severe':'bg-danger'} %}
+
+    {# AHI card #}
+    <div class="mcard">
+        <div class="mlabel">AHI Score</div>
+        {% if latest.ahi_score >= 30 %}{% set ahi_color = 'ahi-severe' %}
+        {% elif latest.ahi_score >= 15 %}{% set ahi_color = 'ahi-moderate' %}
+        {% elif latest.ahi_score >= 5 %}{% set ahi_color = 'ahi-mild' %}
+        {% else %}{% set ahi_color = 'ahi-normal' %}{% endif %}
+        <div class="mval {{ ahi_color }}">{{ "%.1f"|format(latest.ahi_score) }}</div>
+        <div class="msub">events / hour</div>
+        {% if prev and latest.changes and latest.changes.get('ahi_score') %}
+        {% set ch = latest.changes['ahi_score'] %}
+        <div class="mdelta {% if ch.delta < 0 %}trend-down-good{% elif ch.delta > 0 %}trend-up-bad{% else %}trend-same{% endif %}">
+            {{ '▼' if ch.delta < 0 else ('▲' if ch.delta > 0 else '=') }}
+            {{ "%.1f"|format(ch.delta|abs) }} vs prev
+        </div>
+        {% endif %}
+    </div>
+
+    {# Severity card #}
+    <div class="mcard">
+        <div class="mlabel">Severity</div>
+        <div class="mt-2">
+            <span class="badge {{ sev_colors.get(latest.severity, 'bg-secondary') }} fs-6">
+                {{ latest.severity | title }}
+            </span>
+        </div>
+        <div class="msub mt-2">confidence {{ "%.0f"|format(latest.confidence) }}%</div>
+    </div>
+
+    {# Apnea events #}
+    <div class="mcard">
+        <div class="mlabel">Apnea Events</div>
+        <div class="mval">{{ latest.apnea_events }}</div>
+        <div class="msub">events</div>
+        {% if latest.changes and latest.changes.get('apnea_events') %}
+        {% set ch = latest.changes['apnea_events'] %}
+        <div class="mdelta {% if ch.delta < 0 %}trend-down-good{% elif ch.delta > 0 %}trend-up-bad{% else %}trend-same{% endif %}">
+            {{ '▼' if ch.delta < 0 else ('▲' if ch.delta > 0 else '=') }} {{ ch.delta|abs }} vs prev
+        </div>
+        {% endif %}
+    </div>
+
+    {# ODI #}
+    <div class="mcard">
+        <div class="mlabel">ODI</div>
+        <div class="mval">{{ "%.1f"|format(latest.oxygen_desaturation) }}<small style="font-size:0.9rem">%</small></div>
+        <div class="msub">desaturation index</div>
+        {% if latest.changes and latest.changes.get('oxygen_desaturation') %}
+        {% set ch = latest.changes['oxygen_desaturation'] %}
+        <div class="mdelta {% if ch.delta < 0 %}trend-down-good{% elif ch.delta > 0 %}trend-up-bad{% else %}trend-same{% endif %}">
+            {{ '▼' if ch.delta < 0 else ('▲' if ch.delta > 0 else '=') }} {{ "%.1f"|format(ch.delta|abs) }}% vs prev
+        </div>
+        {% endif %}
+    </div>
+
+    {# SpO2 mean #}
+    {% if latest.spo2_mean %}
+    <div class="mcard">
+        <div class="mlabel">Mean SpO2</div>
+        {% if latest.spo2_mean < 90 %}{% set spo2_color = 'spo2-danger' %}
+        {% elif latest.spo2_mean < 94 %}{% set spo2_color = 'spo2-warning' %}
+        {% else %}{% set spo2_color = 'spo2-ok' %}{% endif %}
+        <div class="mval {{ spo2_color }}">{{ "%.1f"|format(latest.spo2_mean) }}<small style="font-size:0.9rem">%</small></div>
+        <div class="msub">saturation</div>
+        {% if latest.changes and latest.changes.get('spo2_mean') %}
+        {% set ch = latest.changes['spo2_mean'] %}
+        <div class="mdelta {% if ch.delta > 0 %}trend-up-good{% elif ch.delta < 0 %}trend-down-bad{% else %}trend-same{% endif %}">
+            {{ '▲' if ch.delta > 0 else ('▼' if ch.delta < 0 else '=') }} {{ "%.1f"|format(ch.delta|abs) }}% vs prev
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# SDNN #}
+    {% if latest.sdnn %}
+    <div class="mcard">
+        <div class="mlabel">SDNN</div>
+        <div class="mval" style="color:var(--teal);">{{ "%.1f"|format(latest.sdnn) }}<small style="font-size:0.9rem"> ms</small></div>
+        <div class="msub">HRV time domain</div>
+        {% if latest.changes and latest.changes.get('sdnn') %}
+        {% set ch = latest.changes['sdnn'] %}
+        <div class="mdelta {% if ch.delta > 0 %}trend-up-good{% elif ch.delta < 0 %}trend-down-bad{% else %}trend-same{% endif %}">
+            {{ '▲' if ch.delta > 0 else ('▼' if ch.delta < 0 else '=') }} {{ "%.1f"|format(ch.delta|abs) }} ms vs prev
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+{# ── AHI trend chart ── #}
+<div class="db-section-label">AHI score — all {{ total }} session{{ 's' if total != 1 }}</div>
+<div class="chart-card">
+    <div class="chart-card-title">Apnea-Hypopnea Index trend</div>
+    <div class="chart-card-sub">Each dot = one analysis session. Dashed lines = clinical severity thresholds.</div>
+    <div class="leg">
+        <span class="leg-item"><span class="leg-sq" style="background:#dc3545"></span>Severe ≥30</span>
+        <span class="leg-item"><span class="leg-sq" style="background:#fd7e14"></span>Moderate 15–29</span>
+        <span class="leg-item"><span class="leg-sq" style="background:#0d6efd"></span>Mild 5–14</span>
+        <span class="leg-item"><span class="leg-sq" style="background:#198754"></span>Normal &lt;5</span>
+    </div>
+    <div style="position:relative;height:260px;">
+        <canvas id="ahiChart" role="img" aria-label="Line chart of AHI scores across all analysis sessions">
+            AHI scores over time: {% for s in sessions %}Session {{ s.session }}: {{ s.ahi_score }}{% if not loop.last %}, {% endif %}{% endfor %}
+        </canvas>
+    </div>
+</div>
+
+{# ── Events + ODI side by side ── #}
+<div class="chart-grid">
+    <div class="chart-card">
+        <div class="chart-card-title">Apnea &amp; Hypopnea events</div>
+        <div class="chart-card-sub">Grouped bars per session</div>
+        <div class="leg">
+            <span class="leg-item"><span class="leg-sq" style="background:#dc3545"></span>Apnea</span>
+            <span class="leg-item"><span class="leg-sq" style="background:#fd7e14"></span>Hypopnea</span>
+        </div>
+        <div style="position:relative;height:220px;">
+            <canvas id="eventsChart" role="img" aria-label="Grouped bar chart of apnea and hypopnea events per session">Event counts per session</canvas>
+        </div>
+    </div>
+    <div class="chart-card">
+        <div class="chart-card-title">Oxygen desaturation index</div>
+        <div class="chart-card-sub">ODI % across sessions</div>
+        <div class="leg">
+            <span class="leg-item"><span class="leg-sq" style="background:#7048c8"></span>ODI %</span>
+        </div>
+        <div style="position:relative;height:220px;">
+            <canvas id="odiChart" role="img" aria-label="Line chart of oxygen desaturation index per session">ODI values per session</canvas>
+        </div>
+    </div>
+</div>
+
+{# ── HRV charts ── #}
+{% if sessions | selectattr('sdnn') | list | length > 0 %}
+<div class="db-section-label">Heart Rate Variability — trend</div>
+<div class="chart-grid">
+    <div class="chart-card">
+        <div class="chart-card-title">SDNN &amp; RMSSD (time domain)</div>
+        <div class="chart-card-sub">Higher values = better autonomic health</div>
+        <div class="leg">
+            <span class="leg-item"><span class="leg-sq" style="background:#0a7fa6"></span>SDNN ms</span>
+            <span class="leg-item"><span class="leg-sq" style="background:#198754"></span>RMSSD ms ----</span>
+        </div>
+        <div style="position:relative;height:210px;">
+            <canvas id="hrvTimeDomain" role="img" aria-label="Line chart of SDNN and RMSSD HRV metrics across sessions">HRV time domain trend</canvas>
+        </div>
+    </div>
+    <div class="chart-card">
+        <div class="chart-card-title">LF/HF ratio (frequency domain)</div>
+        <div class="chart-card-sub">Lower ratio = better parasympathetic balance</div>
+        <div class="leg">
+            <span class="leg-item"><span class="leg-sq" style="background:#7048c8"></span>LF/HF ratio</span>
+        </div>
+        <div style="position:relative;height:210px;">
+            <canvas id="lfhfChart" role="img" aria-label="Line chart of LF to HF ratio across sessions">LF/HF ratio trend</canvas>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ── SpO2 charts ── #}
+{% if sessions | selectattr('spo2_mean') | list | length > 0 %}
+<div class="db-section-label">Oxygen saturation — trend</div>
+<div class="chart-grid">
+    <div class="chart-card">
+        <div class="chart-card-title">Mean &amp; minimum SpO2</div>
+        <div class="chart-card-sub">% oxygen saturation across sessions</div>
+        <div class="leg">
+            <span class="leg-item"><span class="leg-sq" style="background:#198754"></span>Mean SpO2</span>
+            <span class="leg-item"><span class="leg-sq" style="background:#dc3545"></span>Min SpO2 ----</span>
+        </div>
+        <div style="position:relative;height:210px;">
+            <canvas id="spo2Chart" role="img" aria-label="Line chart of mean and minimum SpO2 per session">SpO2 trend</canvas>
+        </div>
+    </div>
+    <div class="chart-card">
+        <div class="chart-card-title">Time in hypoxia</div>
+        <div class="chart-card-sub">% recording time below SpO2 thresholds</div>
+        <div class="leg">
+            <span class="leg-item"><span class="leg-sq" style="background:#dc3545"></span>T&lt;90%</span>
+            <span class="leg-item"><span class="leg-sq" style="background:#fd7e14"></span>T&lt;95% ----</span>
+        </div>
+        <div style="position:relative;height:210px;">
+            <canvas id="desatChart" role="img" aria-label="Line chart of time spent below 90% and 95% SpO2">Desaturation time trend</canvas>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ── Session-over-session change table ── #}
+{% if total > 1 %}
+<div class="db-section-label">Session-over-session changes</div>
+<div class="chart-card">
+    <div class="chart-card-title">Metric changes vs previous session</div>
+    <div class="chart-card-sub">
+        <span class="trend-down-good">▼ green</span> = improvement &nbsp;&middot;&nbsp;
+        <span class="trend-up-bad">▲ red</span> = worsening &nbsp;&middot;&nbsp;
+        First session shown as baseline
+    </div>
+    <div style="overflow-x:auto;">
+        <table class="session-table" id="changeTable">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    {% for s in sessions %}<th>{{ s.label }}</th>{% endfor %}
+                </tr>
+            </thead>
+            <tbody id="changeBody"></tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{# ── Full session history table ── #}
+<div class="db-section-label">All sessions</div>
+<div class="chart-card">
+    <div class="chart-card-title">Session history</div>
+    <div style="overflow-x:auto;">
+        <table class="session-table">
+            <thead>
+                <tr>
+                    <th>#</th><th>Date</th><th>File</th><th>AHI</th><th>Severity</th>
+                    <th>Apnea</th><th>Hypopnea</th><th>ODI%</th><th>SDNN</th><th>RMSSD</th><th>SpO2 mean</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in sessions %}
+                {% set sev = s.severity %}
+                <tr>
+                    <td>{{ s.session }}</td>
+                    <td>{{ s.date }}</td>
+                    <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                        title="{{ s.filename | e }}">{{ s.filename | e }}</td>
+                    <td><strong>{{ "%.1f"|format(s.ahi_score) }}</strong></td>
+                    <td>
+                        <span class="badge
+                            {% if sev == 'severe' %}bg-danger
+                            {% elif sev == 'moderate' %}bg-warning text-dark
+                            {% elif sev == 'mild' %}bg-info text-dark
+                            {% else %}bg-success{% endif %}">
+                            {{ sev | title }}
+                        </span>
+                    </td>
+                    <td>{{ s.apnea_events }}</td>
+                    <td>{{ s.hypopnea_events }}</td>
+                    <td>{{ "%.1f"|format(s.oxygen_desaturation) }}</td>
+                    <td>{{ "%.1f"|format(s.sdnn) if s.sdnn else '—' }}</td>
+                    <td>{{ "%.1f"|format(s.rmssd) if s.rmssd else '—' }}</td>
+                    <td>{{ "%.1f"|format(s.spo2_mean) ~ '%' if s.spo2_mean else '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endif %} {# end total > 0 #}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script nonce="{{ csp_nonce() }}">
+(function() {
+    var raw = document.getElementById('sessionData');
+    if (!raw) return;
+    var S;
+    try { S = JSON.parse(raw.textContent); } catch(e) { return; }
+    if (!S || !S.length) return;
+
+    var labels = S.map(function(s){ return s.label; });
+    var n = S.length;
+    var ptSz = Array(n).fill(7);
+
+    var isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var textCol = isDark ? '#9ca3af' : '#6c757d';
+    var gridCol = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+
+    function baseOpts(yLabel, sugMin, sugMax) {
+        return {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: textCol, font: { size: 11 }, autoSkip: false, maxRotation: 0 }, grid: { color: gridCol } },
+                y: { ticks: { color: textCol, font: { size: 11 } }, grid: { color: gridCol },
+                     title: { display: !!yLabel, text: yLabel, color: textCol, font: { size: 11 } },
+                     suggestedMin: sugMin !== undefined ? sugMin : undefined,
+                     suggestedMax: sugMax !== undefined ? sugMax : undefined }
+            }
+        };
+    }
+
+    function ptColors(metric, thresholds) {
+        return S.map(function(s){
+            var v = s[metric];
+            for (var i = 0; i < thresholds.length; i++) {
+                if (v >= thresholds[i][0]) return thresholds[i][1];
+            }
+            return thresholds[thresholds.length-1][1];
+        });
+    }
+
+    new Chart(document.getElementById('ahiChart'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'AHI', data: S.map(function(s){ return s.ahi_score; }),
+                  borderColor: '#0a7fa6', backgroundColor: 'rgba(10,127,166,0.1)',
+                  borderWidth: 2.5, fill: true, tension: 0.35,
+                  pointRadius: ptSz, pointHoverRadius: 10, pointBorderWidth: 0,
+                  pointBackgroundColor: ptColors('ahi_score', [[30,'#dc3545'],[15,'#fd7e14'],[5,'#0d6efd'],[0,'#198754']]) },
+                { label: 'Severe', data: Array(n).fill(30), borderColor: '#dc3545', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false },
+                { label: 'Moderate', data: Array(n).fill(15), borderColor: '#fd7e14', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false },
+                { label: 'Mild', data: Array(n).fill(5), borderColor: '#0d6efd', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false }
+            ]
+        },
+        options: Object.assign({}, baseOpts('events/hr', 0), {
+            plugins: { legend: { display: false },
+                tooltip: { callbacks: { label: function(c){ return ' AHI: ' + c.parsed.y.toFixed(1) + ' ev/hr'; } } } }
+        })
+    });
+
+    new Chart(document.getElementById('eventsChart'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Apnea', data: S.map(function(s){ return s.apnea_events; }), backgroundColor: '#dc3545', borderRadius: 3 },
+                { label: 'Hypopnea', data: S.map(function(s){ return s.hypopnea_events; }), backgroundColor: '#fd7e14', borderRadius: 3 }
+            ]
+        },
+        options: baseOpts('events')
+    });
+
+    new Chart(document.getElementById('odiChart'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{ label: 'ODI%', data: S.map(function(s){ return s.oxygen_desaturation; }),
+                borderColor: '#7048c8', backgroundColor: 'rgba(112,72,200,0.1)',
+                borderWidth: 2.5, fill: true, tension: 0.35,
+                pointRadius: ptSz, pointHoverRadius: 10, pointBorderWidth: 0, pointBackgroundColor: '#7048c8' }]
+        },
+        options: baseOpts('ODI %', 0)
+    });
+
+    var hrv = document.getElementById('hrvTimeDomain');
+    if (hrv && S.some(function(s){ return s.sdnn !== null; })) {
+        new Chart(hrv, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'SDNN', data: S.map(function(s){ return s.sdnn; }), borderColor: '#0a7fa6',
+                      borderWidth: 2.5, fill: false, tension: 0.35, spanGaps: true,
+                      pointRadius: ptSz, pointHoverRadius: 10, pointBorderWidth: 0, pointBackgroundColor: '#0a7fa6' },
+                    { label: 'RMSSD', data: S.map(function(s){ return s.rmssd; }), borderColor: '#198754',
+                      borderWidth: 2, fill: false, tension: 0.35, spanGaps: true, borderDash:[6,3],
+                      pointRadius: ptSz, pointHoverRadius: 10, pointBorderWidth: 0, pointBackgroundColor: '#198754' }
+                ]
+            },
+            options: Object.assign({}, baseOpts('ms'), {
+                plugins: { legend: { display: false },
+                    tooltip: { callbacks: { label: function(c){ return ' ' + c.dataset.label + ': ' + (c.parsed.y||0).toFixed(1) + ' ms'; } } } }
+            })
+        });
+    }
+
+    var lfhf = document.getElementById('lfhfChart');
+    if (lfhf && S.some(function(s){ return s.lf_hf_ratio !== null; })) {
+        new Chart(lfhf, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{ label: 'LF/HF', data: S.map(function(s){ return s.lf_hf_ratio; }),
+                    borderColor: '#7048c8', backgroundColor: 'rgba(112,72,200,0.1)',
+                    borderWidth: 2.5, fill: true, tension: 0.35, spanGaps: true,
+                    pointRadius: ptSz, pointHoverRadius: 10, pointBorderWidth: 0, pointBackgroundColor: '#7048c8' }]
+            },
+            options: baseOpts('ratio', 0)
+        });
+    }
+
+    var spo2 = document.getElementById('spo2Chart');
+    if (spo2 && S.some(function(s){ return s.spo2_mean !== null; })) {
+        new Chart(spo2, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Mean SpO2', data: S.map(function(s){ return s.spo2_mean; }), borderColor: '#198754',
+                      borderWidth: 2.5, fill: false, tension: 0.35, spanGaps: true,
+                      pointRadius: ptSz, pointHoverRadius: 10, pointBorderWidth: 0, pointBackgroundColor: '#198754' },
+                    { label: 'Min SpO2', data: S.map(function(s){ return s.spo2_min; }), borderColor: '#dc3545',
+                      borderWidth: 2, fill: false, tension: 0.35, spanGaps: true, borderDash:[6,3],
+                      pointRadius: ptSz, pointHoverRadius: 10, pointBorderWidth: 0, pointBackgroundColor: '#dc3545' }
+                ]
+            },
+            options: Object.assign({}, baseOpts('%', 80, 100), {
+                plugins: { legend: { display: false },
+                    tooltip: { callbacks: { label: function(c){ return ' ' + c.dataset.label + ': ' + (c.parsed.y||0).toFixed(1) + '%'; } } } }
+            })
+        });
+    }
+
+    var desat = document.getElementById('desatChart');
+    if (desat && S.some(function(s){ return s.time_below_90 !== null; })) {
+        new Chart(desat, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'T<90%', data: S.map(function(s){ return s.time_below_90; }), borderColor: '#dc3545',
+                      borderWidth: 2.5, fill: false, tension: 0.35, spanGaps: true,
+                      pointRadius: ptSz, pointHoverRadius: 10, pointBorderWidth: 0, pointBackgroundColor: '#dc3545' },
+                    { label: 'T<95%', data: S.map(function(s){ return s.time_below_95; }), borderColor: '#fd7e14',
+                      borderWidth: 2, fill: false, tension: 0.35, spanGaps: true, borderDash:[6,3],
+                      pointRadius: ptSz, pointHoverRadius: 10, pointBorderWidth: 0, pointBackgroundColor: '#fd7e14' }
+                ]
+            },
+            options: baseOpts('% of recording', 0)
+        });
+    }
+
+    /* Session-over-session change table */
+    var changeBody = document.getElementById('changeBody');
+    if (!changeBody) return;
+
+    var changeKeys = [
+        { key: 'ahi_score',          label: 'AHI score',        unit: ' ev/hr', lowerBetter: true },
+        { key: 'apnea_events',        label: 'Apnea events',     unit: '',       lowerBetter: true },
+        { key: 'hypopnea_events',     label: 'Hypopnea events',  unit: '',       lowerBetter: true },
+        { key: 'oxygen_desaturation', label: 'ODI',              unit: '%',      lowerBetter: true },
+        { key: 'sdnn',                label: 'SDNN',             unit: ' ms',    lowerBetter: false },
+        { key: 'rmssd',               label: 'RMSSD',            unit: ' ms',    lowerBetter: false },
+        { key: 'spo2_mean',           label: 'Mean SpO2',        unit: '%',      lowerBetter: false },
+        { key: 'time_below_90',       label: 'T<90% SpO2',       unit: '%',      lowerBetter: true },
+    ];
+
+    var rows = '';
+    changeKeys.forEach(function(ck) {
+        var hasAny = S.some(function(s){ return s[ck.key] !== null && s[ck.key] !== undefined; });
+        if (!hasAny) return;
+        rows += '<tr><td style="font-weight:600;white-space:nowrap">' + ck.label + '</td>';
+        S.forEach(function(s) {
+            var val = s[ck.key];
+            var chg = s.changes && s.changes[ck.key];
+            var cell = (val !== null && val !== undefined) ? Number(val).toFixed(1) + ck.unit : '—';
+            if (chg) {
+                var improved = ck.lowerBetter ? chg.delta < 0 : chg.delta > 0;
+                var cls = improved ? 'trend-down-good' : 'trend-up-bad';
+                var arrow = chg.delta > 0 ? '▲' : '▼';
+                var sign = chg.delta > 0 ? '+' : '';
+                cell += '<br><span class="' + cls + '" style="font-size:0.7rem">' + arrow + ' ' + sign + Number(chg.delta).toFixed(1) + ' (' + sign + Number(chg.pct).toFixed(1) + '%)</span>';
+            } else if (s.session === 1) {
+                cell += '<br><span style="font-size:0.7rem;color:var(--text-muted)">baseline</span>';
+            }
+            rows += '<td>' + cell + '</td>';
+        });
+        rows += '</tr>';
+    });
+    changeBody.innerHTML = rows;
+})();
+</script>
+{% endblock %}

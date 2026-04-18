@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Assign Patient{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="bi bi-person-plus"></i> Assign New Patient</h2>
+        <hr>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-body">
+                {% if available_patients %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Select a patient from the list below to assign them to your care.
+                </div>
+                
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.patient_id.label(class="form-label") }}
+                        {{ form.patient_id(class="form-select form-select-lg") }}
+                        {% if form.patient_id.errors %}
+                            <div class="text-danger">
+                                {% for error in form.patient_id.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.notes.label(class="form-label") }}
+                        {{ form.notes(class="form-control", rows=4, 
+                                     placeholder="Add any notes about this assignment (e.g., referral reason, special considerations)...") }}
+                        <small class="text-muted">These notes will help you remember important details about this patient.</small>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex">
+                        {{ form.submit(class="btn btn-primary btn-lg") }}
+                        <a href="{{ url_for('doctor.patients') }}" class="btn btn-outline-secondary btn-lg">
+                            <i class="bi bi-x"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+                {% else %}
+                <div class="alert alert-warning">
+                    <h5><i class="bi bi-exclamation-triangle"></i> No Available Patients</h5>
+                    <p>All registered patients have already been assigned to you.</p>
+                    <p class="mb-0">New patients need to register first before they can be assigned.</p>
+                </div>
+                <a href="{{ url_for('doctor.patients') }}" class="btn btn-primary">
+                    <i class="bi bi-arrow-left"></i> Back to Patients
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

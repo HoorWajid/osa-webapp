@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Upload Data File{% endblock %}
+{% block page_title %}Upload Data File{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+
+        <div class="d-flex align-items-center gap-2 mb-4">
+            <i class="bi bi-cloud-upload text-primary fs-3"></i>
+            <h2 class="mb-0">Upload Sleep Data</h2>
+        </div>
+
+        <div class="card shadow">
+            <div class="card-header">
+                <i class="bi bi-file-earmark-arrow-up me-2"></i>Select Your Data File
+            </div>
+            <div class="card-body">
+
+                <form method="POST" enctype="multipart/form-data" id="uploadForm" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <!-- Drag-drop zone -->
+                    <div id="dropZone" class="rounded-3 p-5 text-center mb-3"
+                         style="border: 2px dashed var(--teal-light);
+                                background: #f0fbfb; cursor: pointer; transition: all 0.2s;"
+                         role="button" tabindex="0" aria-label="Click or drag to upload a file">
+                        <i class="bi bi-cloud-arrow-up" style="font-size:3rem; color:var(--teal-light);"></i>
+                        <h5 class="mt-2 mb-1" style="color:var(--teal-dark);">
+                            Drop your file here or click to browse
+                        </h5>
+                        {# SECURITY FIX: accept attribute updated to match backend —
+                           .xlsx/.xls removed because backend rejects them (routes.py
+                           DataFileUploadForm allows csv/edf/txt only). Showing
+                           unsupported formats confuses users and causes silent failures. #}
+                        <p class="text-muted small mb-0">
+                            Supported formats:
+                            <strong>.edf</strong> (PSG / polysomnography),
+                            <strong>.csv</strong>,
+                            <strong>.txt</strong>
+                        </p>
+                        <p id="selectedFile" class="mt-2 mb-0 fw-bold" style="display:none;color:var(--teal-dark);"></p>
+                        <p id="fileSizeWarning" class="mt-1 mb-0 text-danger small" style="display:none;"></p>
+                    </div>
+
+                    <!-- Hidden real input — accept matches backend whitelist exactly -->
+                    <input type="file" id="fileInput" name="data_file"
+                           accept=".edf,.csv,.txt"
+                           class="d-none">
+
+                    <!-- Format guide — corrected to match actual backend support -->
+                    <div class="row g-2 mb-4">
+                        <div class="col-4">
+                            <div class="rounded-3 p-2 text-center"
+                                 style="background:#e8f7f7; border:1px solid var(--border);">
+                                <i class="bi bi-activity text-primary fs-4"></i>
+                                <div class="fw-bold small mt-1">EDF / PSG</div>
+                                <div class="text-muted" style="font-size:0.72rem;">Polysomnography</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="rounded-3 p-2 text-center"
+                                 style="background:#e8f7f7; border:1px solid var(--border);">
+                                <i class="bi bi-filetype-csv text-info fs-4"></i>
+                                <div class="fw-bold small mt-1">CSV</div>
+                                <div class="text-muted" style="font-size:0.72rem;">Comma-separated</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="rounded-3 p-2 text-center"
+                                 style="background:#e8f7f7; border:1px solid var(--border);">
+                                <i class="bi bi-file-earmark-text text-secondary fs-4"></i>
+                                <div class="fw-bold small mt-1">TXT</div>
+                                <div class="text-muted" style="font-size:0.72rem;">Plain text</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-sm-flex">
+                        <button type="submit" class="btn btn-primary flex-grow-1" id="submitBtn" disabled>
+                            <i class="bi bi-cloud-upload me-2"></i>Upload File
+                        </button>
+                        <a href="{{ url_for('patient.my_data_files') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x me-1"></i>Cancel
+                        </a>
+                    </div>
+                    <p class="text-muted small mt-2 mb-0 text-center">
+                        Maximum file size: 100 MB
+                    </p>
+                </form>
+
+            </div>
+        </div>
+
+        <!-- Tips -->
+        <div class="card mt-3">
+            <div class="card-body py-3">
+                <h6 class="mb-2"><i class="bi bi-lightbulb text-warning me-2"></i>Tips</h6>
+                <ul class="mb-0 small text-muted ps-3">
+                    <li>EDF files from PSG studies give the most accurate results (ECG + SpO₂ signals)</li>
+                    <li>CSV files should contain AHI, SpO₂, and HRV columns where available</li>
+                    <li>Make sure your health demographics are filled in for best prediction accuracy</li>
+                </ul>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/upload.js') }}"></script>
+<script nonce="{{ csp_nonce() }}">
+(function() {
+    const MAX_BYTES  = 100 * 1024 * 1024;  // 100 MB — matches server MAX_CONTENT_LENGTH
+    const ALLOWED    = new Set(['.edf', '.csv', '.txt']);
+    const dropZone   = document.getElementById('dropZone');
+    const fileInput  = document.getElementById('fileInput');
+    const filLabel   = document.getElementById('selectedFile');
+    const sizeWarn   = document.getElementById('fileSizeWarning');
+    const submitBtn  = document.getElementById('submitBtn');
+
+    function humanSize(bytes) {
+        if (bytes < 1024)       return bytes + ' B';
+        if (bytes < 1048576)    return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    function getExt(name) {
+        const m = name.toLowerCase().match(/(\.[^.]+)$/);
+        return m ? m[1] : '';
+    }
+
+    function validateFile(file) {
+        sizeWarn.style.display = 'none';
+        sizeWarn.textContent = '';
+        submitBtn.disabled = true;
+
+        if (!file) return;
+
+        const ext = getExt(file.name);
+
+        // Client-side extension check (informational only — server validates too)
+        if (!ALLOWED.has(ext)) {
+            sizeWarn.textContent = 'Unsupported file type. Please upload .edf, .csv, or .txt';
+            sizeWarn.style.display = 'block';
+            filLabel.textContent = '';
+            filLabel.style.display = 'none';
+            return;
+        }
+
+        // SECURITY FIX: Client-side size check warns user before wasting upload bandwidth
+        if (file.size > MAX_BYTES) {
+            sizeWarn.textContent =
+                'File is too large (' + humanSize(file.size) + '). Maximum is 100 MB.';
+            sizeWarn.style.display = 'block';
+            filLabel.textContent = '';
+            filLabel.style.display = 'none';
+            return;
+        }
+
+        filLabel.textContent = file.name + ' (' + humanSize(file.size) + ')';
+        filLabel.style.display = 'block';
+        submitBtn.disabled = false;
+    }
+
+    // Click to browse
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+
+    fileInput.addEventListener('change', function() {
+        validateFile(this.files[0] || null);
+    });
+
+    // Drag and drop
+    dropZone.addEventListener('dragover', e => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'var(--teal)';
+        dropZone.style.background  = '#e0f8f7';
+    });
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.style.borderColor = 'var(--teal-light)';
+        dropZone.style.background  = '#f0fbfb';
+    });
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'var(--teal-light)';
+        dropZone.style.background  = '#f0fbfb';
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            // Transfer dropped file to the real input via DataTransfer
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            fileInput.files = dt.files;
+            validateFile(file);
+        }
+    });
+
+    // Prevent accidental form submission without a file
+    document.getElementById('uploadForm').addEventListener('submit', function(e) {
+        if (!fileInput.files || !fileInput.files[0]) {
+            e.preventDefault();
+            sizeWarn.textContent = 'Please select a file before uploading.';
+            sizeWarn.style.display = 'block';
+        }
+    });
+})();
+</script>
+{% endblock %}

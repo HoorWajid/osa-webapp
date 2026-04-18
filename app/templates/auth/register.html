@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Create Account{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm" style="border-top:4px solid var(--teal);border-radius:12px;">
+            <div class="card-body p-5">
+
+                <div class="text-center mb-4">
+                    <div style="width:56px;height:56px;border-radius:50%;
+                                background:linear-gradient(135deg,var(--teal-light),var(--teal));
+                                display:flex;align-items:center;justify-content:center;
+                                margin:0 auto 1rem;font-size:1.6rem;color:#fff;">
+                        <i class="bi bi-person-plus"></i>
+                    </div>
+                    <h3 class="mb-0" style="font-weight:700;">Create Account</h3>
+                    <small class="text-muted">You'll receive a confirmation email to activate your account</small>
+                </div>
+
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.username.label(class="form-label fw-semibold") }}
+                            <div class="input-group">
+                                <span class="input-group-text bg-white">
+                                    <i class="bi bi-person" style="color:var(--teal);"></i>
+                                </span>
+                                {{ form.username(class="form-control",
+                                   placeholder="username",
+                                   autocomplete="username",
+                                   spellcheck="false",
+                                   autocapitalize="none") }}
+                            </div>
+                            {% if form.username.errors %}
+                            <div class="text-danger mt-1"><small>{{ form.username.errors[0] | e }}</small></div>
+                            {% endif %}
+                            <small class="text-muted">Letters, numbers, _ . - only</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.role.label(class="form-label fw-semibold") }}
+                            {#
+                              Role choices are defined server-side in forms.py as
+                              [('patient','Patient'),('doctor','Doctor')] only.
+                              'admin' is never in the choices list — enforced at form level.
+                              Server-side validation in routes.py provides the second layer.
+                            #}
+                            {{ form.role(class="form-select") }}
+                            {% if form.role.errors %}
+                            <div class="text-danger mt-1"><small>{{ form.role.errors[0] | e }}</small></div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.email.label(class="form-label fw-semibold") }}
+                        <div class="input-group">
+                            <span class="input-group-text bg-white">
+                                <i class="bi bi-envelope" style="color:var(--teal);"></i>
+                            </span>
+                            {{ form.email(class="form-control",
+                               placeholder="your@email.com",
+                               autocomplete="email",
+                               type="email") }}
+                        </div>
+                        {% if form.email.errors %}
+                        <div class="text-danger mt-1"><small>{{ form.email.errors[0] | e }}</small></div>
+                        {% endif %}
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle me-1"></i>
+                            A confirmation email will be sent here. You must confirm it before logging in.
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.password.label(class="form-label fw-semibold") }}
+                        <div class="input-group">
+                            <span class="input-group-text bg-white">
+                                <i class="bi bi-lock" style="color:var(--teal);"></i>
+                            </span>
+                            {# SECURITY FIX: placeholder updated to match actual 12-char requirement #}
+                            {{ form.password(class="form-control",
+                               placeholder="Min. 12 characters",
+                               id="regPwd",
+                               autocomplete="new-password") }}
+                            <button class="btn btn-outline-secondary" type="button"
+                                    id="toggleRegPwd"
+                                    aria-label="Show/hide password"
+                                    tabindex="-1">
+                                <i class="bi bi-eye" id="regPwdIcon"></i>
+                            </button>
+                        </div>
+                        {% if form.password.errors %}
+                        <div class="text-danger mt-1"><small>{{ form.password.errors[0] | e }}</small></div>
+                        {% endif %}
+                        <small class="text-muted">
+                            Requires uppercase, lowercase, number, and special character (!@#$%^&amp;* etc.)
+                        </small>
+                    </div>
+
+                    <div class="mb-4">
+                        {{ form.confirm_password.label(class="form-label fw-semibold") }}
+                        <div class="input-group">
+                            <span class="input-group-text bg-white">
+                                <i class="bi bi-lock-fill" style="color:var(--teal);"></i>
+                            </span>
+                            {{ form.confirm_password(class="form-control",
+                               placeholder="Repeat password",
+                               id="confPwd",
+                               autocomplete="new-password") }}
+                            <button class="btn btn-outline-secondary" type="button"
+                                    id="toggleConfPwd"
+                                    aria-label="Show/hide confirm password"
+                                    tabindex="-1">
+                                <i class="bi bi-eye" id="confPwdIcon"></i>
+                            </button>
+                        </div>
+                        {% if form.confirm_password.errors %}
+                        <div class="text-danger mt-1"><small>{{ form.confirm_password.errors[0] | e }}</small></div>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-grid mb-3">
+                        {{ form.submit(class="btn btn-primary btn-lg",
+                           style="background:var(--teal);border-color:var(--teal);font-weight:600;") }}
+                    </div>
+                </form>
+
+                <hr class="my-3">
+                <div class="text-center" style="font-size:0.9rem;">
+                    Already have an account?
+                    <a href="{{ url_for('auth.login') }}" class="fw-semibold text-decoration-none"
+                       style="color:var(--teal);">Log in</a>
+                    &nbsp;&middot;&nbsp;
+                    <a href="{{ url_for('auth.resend_confirmation') }}"
+                       class="text-decoration-none text-muted">Resend confirmation</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce() }}">
+function _makeToggle(inputId, iconId) {
+    document.getElementById('toggle' + inputId.charAt(0).toUpperCase() + inputId.slice(1))
+        .addEventListener('click', function() {
+            const inp  = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            inp.type   = inp.type === 'password' ? 'text' : 'password';
+            icon.className = inp.type === 'password' ? 'bi bi-eye' : 'bi bi-eye-slash';
+        });
+}
+_makeToggle('regPwd',  'regPwdIcon');
+_makeToggle('confPwd', 'confPwdIcon');
+</script>
+{% endblock %}

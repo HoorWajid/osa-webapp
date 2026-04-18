@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Doctor Verification{% endblock %}
+{% block page_title %}Doctor Verification{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+
+        {# ── License expiry renewal prompt ─────────────────────────────────── #}
+        {% if license_expired %}
+        <div class="alert d-flex align-items-start gap-3 mb-4"
+             style="background:#fde8e8;border:1px solid #dc3545;border-left:5px solid #dc3545;border-radius:12px;">
+            <i class="bi bi-x-octagon-fill text-danger fs-3 flex-shrink-0 mt-1"></i>
+            <div>
+                <h5 class="text-danger mb-1">Your Medical License Has Expired</h5>
+                <p class="mb-0" style="font-size:0.9rem;">
+                    Your patient access features have been locked. Submit an updated license
+                    below. Once approved by an admin, your access will be restored.
+                </p>
+            </div>
+        </div>
+        {% elif license_warning %}
+        <div class="alert d-flex align-items-start gap-3 mb-4"
+             style="background:#fff8e6;border:1px solid #ffc107;border-left:5px solid #ffc107;border-radius:12px;">
+            <i class="bi bi-clock-history text-warning fs-3 flex-shrink-0 mt-1"></i>
+            <div>
+                <h5 style="color:#854f0b;" class="mb-1">License Renewal Recommended</h5>
+                <p class="mb-0" style="font-size:0.9rem;">
+                    Your license expires in <strong>{{ license_days }} day{{ 's' if license_days != 1 }}</strong>.
+                    Submit updated documents now to avoid any interruption.
+                </p>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ── Previous rejection notice ─────────────────────────────────────── #}
+        {% if rejection_reason %}
+        <div class="alert alert-danger d-flex gap-3 mb-4" style="border-radius:12px;">
+            <i class="bi bi-x-circle-fill fs-4 flex-shrink-0 mt-1"></i>
+            <div>
+                <strong>Previous submission was rejected:</strong>
+                <p class="mb-0 mt-1" style="font-size:0.88rem;">{{ rejection_reason | e }}</p>
+                <small class="text-muted">Please address the reason above and resubmit.</small>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ── Status: already approved ──────────────────────────────────────── #}
+        {% if current_user.verification_status == 'approved' and not license_expired %}
+        <div class="alert alert-success d-flex gap-3 mb-4" style="border-radius:12px;">
+            <i class="bi bi-patch-check-fill fs-4 flex-shrink-0 mt-1"></i>
+            <div>
+                <strong>Verification Approved</strong>
+                {% if current_user.verified_at %}
+                <small class="text-muted d-block">
+                    Approved on {{ current_user.verified_at.strftime('%B %d, %Y') }}
+                </small>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {# ── Status: pending ───────────────────────────────────────────────── #}
+        {% if current_user.verification_status == 'pending' %}
+        <div class="alert alert-info d-flex gap-3 mb-4" style="border-radius:12px;">
+            <i class="bi bi-hourglass-split fs-4 flex-shrink-0 mt-1"></i>
+            <div>
+                <strong>Documents Under Review</strong>
+                <p class="mb-0 mt-1" style="font-size:0.88rem;">
+                    Your submission is pending admin review. You will be notified by email once approved.
+                </p>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ── Submission form ───────────────────────────────────────────────── #}
+        <div class="card shadow-sm" style="border-top:4px solid var(--teal);border-radius:12px;">
+            <div class="card-header">
+                <i class="bi bi-shield-check me-2" style="color:var(--teal);"></i>
+                <strong>
+                    {% if current_user.verification_status in ('rejected', 'not_submitted') or license_expired %}
+                        Submit Verification Documents
+                    {% else %}
+                        Resubmit / Update Documents
+                    {% endif %}
+                </strong>
+            </div>
+            <div class="card-body p-4">
+                <p class="text-muted mb-4" style="font-size:0.88rem;">
+                    Upload your current medical license for admin review.
+                    Accepted formats: PDF, JPG, PNG.
+                    All documents are stored securely and only accessible to administrators.
+                </p>
+
+                <form method="POST" enctype="multipart/form-data" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <div class="mb-3">
+                        {{ form.medical_license_number.label(class="form-label fw-semibold") }}
+                        {{ form.medical_license_number(class="form-control",
+                           placeholder="e.g. MD-12345-2024") }}
+                        {% if form.medical_license_number.errors %}
+                        <div class="text-danger mt-1"><small>{{ form.medical_license_number.errors[0] | e }}</small></div>
+                        {% endif %}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.license_state.label(class="form-label fw-semibold") }}
+                            {{ form.license_state(class="form-control",
+                               placeholder="e.g. California, Pakistan") }}
+                            {% if form.license_state.errors %}
+                            <div class="text-danger mt-1"><small>{{ form.license_state.errors[0] | e }}</small></div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.license_expiry.label(class="form-label fw-semibold") }}
+                            {{ form.license_expiry(class="form-control") }}
+                            {% if form.license_expiry.errors %}
+                            <div class="text-danger mt-1"><small>{{ form.license_expiry.errors[0] | e }}</small></div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.document_number.label(class="form-label fw-semibold") }}
+                        {{ form.document_number(class="form-control",
+                           placeholder="Official document reference number") }}
+                        {% if form.document_number.errors %}
+                        <div class="text-danger mt-1"><small>{{ form.document_number.errors[0] | e }}</small></div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-4">
+                        {{ form.verification_document.label(class="form-label fw-semibold") }}
+                        <div class="p-3 rounded" style="border:2px dashed var(--teal-light);background:#f4fbfb;">
+                            {{ form.verification_document(class="form-control") }}
+                            <small class="text-muted d-block mt-2">
+                                <i class="bi bi-info-circle me-1"></i>
+                                PDF preferred. Max 10MB. Must show license number, issuing authority, and expiry date clearly.
+                            </small>
+                        </div>
+                        {% if form.verification_document.errors %}
+                        <div class="text-danger mt-1"><small>{{ form.verification_document.errors[0] | e }}</small></div>
+                        {% endif %}
+                    </div>
+
+                    {% if form.notes %}
+                    <div class="mb-4">
+                        {{ form.notes.label(class="form-label fw-semibold") }}
+                        {{ form.notes(class="form-control", rows=3,
+                           placeholder="Any additional context for the reviewer...") }}
+                    </div>
+                    {% endif %}
+
+                    <div class="alert" style="background:#f0fbfb;border:1px solid var(--teal-light);
+                                              font-size:0.82rem;border-radius:10px;">
+                        <i class="bi bi-shield-check me-1" style="color:var(--teal);"></i>
+                        <strong>Privacy:</strong> Documents are stored securely and are only
+                        accessible to administrators for verification purposes.
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-3">
+                        <a href="{{ url_for('doctor.dashboard') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+                        </a>
+                        {{ form.submit(class="btn btn-primary px-4",
+                           style="background:var(--teal);border-color:var(--teal);") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

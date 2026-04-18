@@ -1,0 +1,521 @@
+{% extends "base.html" %}
+{% block title %}Full Report — {{ data_file.original_filename }}{% endblock %}
+{% block page_title %}Full OSA Analysis Report{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Page chrome ── */
+.report-actions-bar {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+}
+.report-actions-bar .report-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--teal-dark);
+}
+.report-actions-bar .report-meta {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* ── The printable / downloadable report ── */
+#reportDocument {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    box-shadow: 0 4px 24px rgba(8,151,157,0.1);
+}
+
+/* Report header band */
+.report-header-band {
+    background: linear-gradient(135deg, var(--teal-dark) 0%, var(--teal) 60%, var(--teal-light) 100%);
+    padding: 2rem 2.5rem;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+}
+.report-header-band::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 200px; height: 200px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 50%;
+}
+.report-header-band .report-doc-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 0.3rem;
+}
+.report-header-band .report-subtitle { color: rgba(255,255,255,0.8); font-size: 0.88rem; }
+.report-header-band .header-meta {
+    display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 1rem;
+}
+.report-header-band .header-meta-item {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.75);
+}
+.report-header-band .header-meta-item strong { color: #fff; }
+
+/* Status banner */
+.status-banner {
+    padding: 1.2rem 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+.status-banner.detected  { background: #fdf5e4; }
+.status-banner.clear     { background: #e4f7f0; }
+.status-banner .status-label {
+    font-size: 1.2rem; font-weight: 800;
+}
+.status-banner .status-chips { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.status-chip {
+    background: rgba(0,0,0,0.06);
+    border-radius: 50px;
+    padding: 0.25rem 0.9rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+/* Report body */
+.report-body { padding: 2rem 2.5rem; }
+
+/* Section heading */
+.report-section { margin-bottom: 2rem; }
+.report-section-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--teal);
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.2rem;
+}
+
+/* Metric grid */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.8rem;
+    margin-bottom: 1.2rem;
+}
+.metric-box {
+    background: #f4fbfb;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.9rem 0.8rem;
+    text-align: center;
+}
+.metric-box .m-value { font-size: 1.4rem; font-weight: 800; color: var(--teal-dark); line-height: 1; }
+.metric-box .m-unit  { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.metric-box .m-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+.metric-box.highlight { background: linear-gradient(135deg, #e8f7f7, #d8f0f0); border-color: var(--teal-light); }
+.metric-box.warn      { background: #fdf5e4; border-color: #f0c040; }
+.metric-box.danger    { background: #fde8e8; border-color: #e05252; }
+
+/* AHI scale bar */
+.ahi-scale {
+    margin: 1rem 0;
+    position: relative;
+}
+.ahi-scale-bar {
+    height: 22px;
+    border-radius: 50px;
+    display: flex;
+    overflow: hidden;
+}
+.ahi-seg { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: #fff; }
+.ahi-pointer {
+    position: absolute;
+    top: -8px;
+    transform: translateX(-50%);
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: var(--teal-dark);
+    white-space: nowrap;
+}
+.ahi-pointer::after {
+    content: '▼';
+    display: block;
+    text-align: center;
+    color: var(--teal-dark);
+}
+
+/* SpO2 percentile bar */
+.spo2-gradient-bar {
+    height: 16px;
+    border-radius: 50px;
+    background: linear-gradient(90deg, #e05252 0%, #f0a500 30%, #f0d040 55%, #4caf76 75%, #08979D 100%);
+    position: relative;
+    margin: 0.8rem 0;
+}
+.spo2-marker {
+    position: absolute;
+    top: -6px;
+    transform: translateX(-50%);
+    width: 4px; height: 28px;
+    background: var(--teal-dark);
+    border-radius: 2px;
+}
+
+/* Two-column data table */
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+.data-table th {
+    background: linear-gradient(135deg, var(--teal-dark), var(--teal));
+    color: #fff; font-weight: 600;
+    padding: 0.55rem 0.9rem;
+    text-align: left;
+    font-size: 0.78rem;
+}
+.data-table td { padding: 0.5rem 0.9rem; border-bottom: 1px solid #eef7f7; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: #f4fbfb; }
+.data-table td:last-child { text-align: right; font-weight: 600; color: var(--teal-dark); }
+
+/* Interpretation callout */
+.callout {
+    border-left: 4px solid var(--teal);
+    background: linear-gradient(135deg, #e8f7f7, #f4fbfb);
+    border-radius: 0 12px 12px 0;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    font-size: 0.84rem;
+    line-height: 1.7;
+    color: var(--text-dark);
+}
+.callout.warn   { border-color: #f0a500; background: #fdf5e4; }
+.callout.danger { border-color: #e05252; background: #fde8e8; }
+
+/* Report footer */
+.report-footer-band {
+    background: #f4fbfb;
+    border-top: 1px solid var(--border);
+    padding: 1rem 2.5rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* Charts inside report */
+.report-chart-wrap {
+    background: #f9fdfd;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+.report-chart-wrap h6 { font-size: 0.82rem; font-weight: 700; color: var(--teal-dark); margin-bottom: 0.6rem; }
+
+/* ── Print styles ── */
+@media print {
+    .report-actions-bar, .sidebar, .topbar, .footer-osa, .flash-container { display: none !important; }
+    .main-area { margin-left: 0 !important; }
+    .page-content { padding: 0 !important; }
+    #reportDocument { border: none !important; box-shadow: none !important; border-radius: 0 !important; }
+    .report-header-band { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .status-banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    canvas { max-width: 100% !important; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% set doctor_view = doctor_view if doctor_view is defined else false %}
+
+<script id="featuresData" type="application/json">{{ features | tojson }}</script>
+<script id="analysisData" type="application/json">{
+    "ahi_score": {{ data_file.analysis.ahi_score | round(2) }},
+    "severity": "{{ data_file.analysis.severity }}",
+    "osa_detected": {{ 'true' if data_file.analysis.osa_detected else 'false' }},
+    "confidence": {{ data_file.analysis.confidence_score | round(3) }},
+    "apnea_events": {{ data_file.analysis.apnea_events or 0 }},
+    "hypopnea_events": {{ data_file.analysis.hypopnea_events or 0 }},
+    "oxygen_desaturation": {{ data_file.analysis.oxygen_desaturation or 0 }},
+    "snoring_intensity": {{ data_file.analysis.snoring_intensity or 0 }},
+    "completed_at": "{{ data_file.analysis.completed_at.strftime('%Y-%m-%d %H:%M') if data_file.analysis.completed_at else 'N/A' }}",
+    "file_name": "{{ data_file.original_filename }}",
+    "file_type": "{{ data_file.file_type }}",
+    "doctor_notes": {{ (data_file.analysis.doctor_notes or '') | tojson }},
+    "recommendations": {{ (data_file.analysis.recommendations or '') | tojson }}
+}</script>
+
+<!-- Action bar -->
+<div class="report-actions-bar">
+    <div>
+        <div class="report-title"><i class="bi bi-file-medical me-2"></i>OSA Analysis Report</div>
+        <div class="report-meta">
+            {{ data_file.original_filename }} &nbsp;·&nbsp;
+            {{ data_file.analysis.completed_at.strftime('%Y-%m-%d %H:%M') if data_file.analysis.completed_at else '' }}
+        </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('doctor.doc_viz_hrv' if doctor_view else 'patient.viz_hrv', file_id=data_file.id) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-heart-pulse me-1"></i>HRV View
+        </a>
+        <a href="{{ url_for('doctor.doc_viz_spo2' if doctor_view else 'patient.viz_spo2', file_id=data_file.id) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-lungs me-1"></i>SpO₂ View
+        </a>
+        {% if doctor_view %}
+        <a href="{{ url_for('doctor.compare_reports') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-bar-chart-steps me-1"></i>Compare Reports
+        </a>
+        {% endif %}
+        <button id="btnDownloadPDF" class="btn btn-primary btn-sm">
+            <i class="bi bi-download me-1"></i>Download PDF
+        </button>
+        <button id="btnPrint" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-printer me-1"></i>Print
+        </button>
+        {% if doctor_view %}
+        <a href="{{ url_for('doctor.patient_detail', patient_id=data_file.patient_id) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Back to Patient
+        </a>
+        {% else %}
+        <a href="{{ url_for('patient.data_file_detail', file_id=data_file.id) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     REPORT DOCUMENT (this element is captured for PDF)
+════════════════════════════════════════════════════ -->
+<div id="reportDocument">
+
+    <!-- Header band -->
+    <div class="report-header-band">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+                <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:2px;opacity:0.7;margin-bottom:0.3rem;">
+                    Obstructive Sleep Apnea Detection System
+                </div>
+                <div class="report-doc-title">Sleep Analysis Report</div>
+                <div class="report-subtitle">AI-powered polysomnography analysis with HRV &amp; SpO₂ metrics</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:14px;padding:0.8rem 1.2rem;text-align:center;">
+                <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:1px;opacity:0.75;">OSA Status</div>
+                <div id="reportStatusBadge" style="font-size:1.3rem;font-weight:800;margin-top:0.2rem;">—</div>
+            </div>
+        </div>
+        <div class="header-meta">
+            <div class="header-meta-item"><strong>File:</strong> {{ data_file.original_filename }}</div>
+            <div class="header-meta-item"><strong>Type:</strong> {{ data_file.file_type.upper() }}</div>
+            <div class="header-meta-item"><strong>Date:</strong>
+                {{ data_file.analysis.completed_at.strftime('%B %d, %Y') if data_file.analysis.completed_at else 'N/A' }}
+            </div>
+            <div class="header-meta-item"><strong>Report ID:</strong> RPT-{{ data_file.id }}-{{ data_file.analysis.id }}</div>
+        </div>
+    </div>
+
+    <!-- Status banner -->
+    <div class="status-banner {% if data_file.analysis.osa_detected %}detected{% else %}clear{% endif %}">
+        <div class="d-flex align-items-center gap-3">
+            <i class="bi bi-{% if data_file.analysis.osa_detected %}exclamation-triangle-fill text-warning{% else %}check-circle-fill text-success{% endif %} fs-3"></i>
+            <div>
+                <div class="status-label">
+                    {% if data_file.analysis.osa_detected %}OSA Detected{% else %}No OSA Detected{% endif %}
+                </div>
+                <div style="font-size:0.8rem;color:var(--text-muted);">
+                    Severity: <strong>{{ data_file.analysis.severity.title() }}</strong>
+                    &nbsp;·&nbsp; Confidence: <strong>{{ "%.1f"|format(data_file.analysis.confidence_score * 100) }}%</strong>
+                </div>
+            </div>
+        </div>
+        <div class="status-chips">
+            <span class="status-chip">AHI {{ "%.1f"|format(data_file.analysis.ahi_score) }}</span>
+            <span class="status-chip">{{ data_file.analysis.apnea_events or 0 }} Apnea</span>
+            <span class="status-chip">{{ data_file.analysis.hypopnea_events or 0 }} Hypopnea</span>
+            <span class="status-chip">ODI {{ "%.1f"|format(data_file.analysis.oxygen_desaturation or 0) }}%</span>
+        </div>
+    </div>
+
+    <!-- Report Body -->
+    <div class="report-body">
+
+        <!-- ── Section 1: Primary Metrics ── -->
+        <div class="report-section">
+            <div class="report-section-title"><i class="bi bi-clipboard-data me-2"></i>Primary OSA Metrics</div>
+
+            <div class="metrics-grid" id="primaryMetrics">
+                <!-- filled by JS -->
+            </div>
+
+            <!-- AHI Scale -->
+            <div class="ahi-scale">
+                <div class="ahi-scale-bar">
+                    <div class="ahi-seg" style="background:#198754;">Normal &lt;5</div>
+                    <div class="ahi-seg" style="background:#8474A1;">Mild 5–14</div>
+                    <div class="ahi-seg" style="background:#08979D;">Moderate 15–29</div>
+                    <div class="ahi-seg" style="background:#c0392b;">Severe ≥30</div>
+                </div>
+                <div class="ahi-pointer" id="ahiPointer" style="left:0%">
+                    {{ "%.1f"|format(data_file.analysis.ahi_score) }}
+                </div>
+            </div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem;">
+                AHI (Apnea-Hypopnea Index) — events per hour of sleep
+            </div>
+        </div>
+
+        <!-- ── Section 2: HRV Metrics ── -->
+        <div class="report-section">
+            <div class="report-section-title"><i class="bi bi-heart-pulse me-2"></i>Heart Rate Variability (HRV)</div>
+            <div class="row g-3">
+                <div class="col-lg-6">
+                    <div class="report-chart-wrap">
+                        <h6>Time &amp; Frequency Domain Overview</h6>
+                        <canvas id="chartHRVSummary" height="220"></canvas>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <table class="data-table" id="hrvTable">
+                        <thead>
+                            <tr><th>HRV Metric</th><th>Value</th><th>Reference</th></tr>
+                        </thead>
+                        <tbody id="hrvTableBody">
+                            <!-- filled by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="callout" id="hrvCallout">—</div>
+        </div>
+
+        <!-- ── Section 3: SpO₂ Metrics ── -->
+        <div class="report-section">
+            <div class="report-section-title"><i class="bi bi-lungs me-2"></i>Oxygen Saturation (SpO₂)</div>
+            <div class="row g-3">
+                <div class="col-lg-6">
+                    <div class="report-chart-wrap">
+                        <h6>Desaturation Time by Threshold</h6>
+                        <canvas id="chartSpo2Summary" height="220"></canvas>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <table class="data-table" id="spo2Table">
+                        <thead>
+                            <tr><th>SpO₂ Metric</th><th>Value</th><th>Normal Range</th></tr>
+                        </thead>
+                        <tbody id="spo2TableBody">
+                            <!-- filled by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- SpO2 gradient bar -->
+            <div style="margin-top:1rem;">
+                <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-muted);margin-bottom:0.3rem;">
+                    <span>Severe Hypoxemia (&lt;85%)</span>
+                    <span>Mild Hypoxemia (90–95%)</span>
+                    <span>Normal (≥95%)</span>
+                </div>
+                <div class="spo2-gradient-bar">
+                    <div class="spo2-marker" id="spo2MinMarker" style="left:0%"></div>
+                    <div class="spo2-marker" id="spo2MeanMarker" style="left:0%; background:var(--teal-dark); width:6px; height:30px; top:-7px;"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;">
+                    <span>70%</span><span>80%</span><span>90%</span><span>95%</span><span>100%</span>
+                </div>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.4rem;">
+                    <span id="spo2MarkerLabel">—</span>
+                </div>
+            </div>
+
+            <div class="callout" id="spo2Callout">—</div>
+        </div>
+
+        <!-- ── Section 4: Nonlinear HRV ── -->
+        <div class="report-section">
+            <div class="report-section-title"><i class="bi bi-diagram-3 me-2"></i>Nonlinear HRV Analysis</div>
+            <div class="row g-3">
+                <div class="col-lg-6">
+                    <div class="report-chart-wrap">
+                        <h6>Poincaré &amp; Complexity Metrics</h6>
+                        <canvas id="chartNonlinearSummary" height="220"></canvas>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Metric</th><th>Value</th><th>Interpretation</th></tr>
+                        </thead>
+                        <tbody id="nonlinearTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Section 5: Doctor Notes & Recommendations ── -->
+        {% if data_file.analysis.doctor_notes or data_file.analysis.recommendations %}
+        <div class="report-section">
+            <div class="report-section-title"><i class="bi bi-person-badge me-2"></i>Clinical Review</div>
+            {% if data_file.analysis.doctor_notes %}
+            <div class="callout mb-3">
+                <strong>Doctor's Notes:</strong><br>{{ data_file.analysis.doctor_notes }}
+            </div>
+            {% endif %}
+            {% if data_file.analysis.recommendations %}
+            <div class="callout warn">
+                <strong>Recommendations:</strong><br>{{ data_file.analysis.recommendations }}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- ── Section 6: Summary ── -->
+        <div class="report-section">
+            <div class="report-section-title"><i class="bi bi-journal-check me-2"></i>Summary &amp; Interpretation</div>
+            <div class="callout {% if data_file.analysis.osa_detected %}warn{% endif %}" id="summaryCallout">
+                Loading summary…
+            </div>
+            <div style="margin-top:1rem;padding:1rem;background:#f4fbfb;border-radius:12px;border:1px solid var(--border);">
+                <p style="font-size:0.75rem;color:var(--text-muted);margin:0;line-height:1.7;">
+                    <strong>Disclaimer:</strong> This report is generated by an AI-powered analysis system and is intended
+                    to assist healthcare professionals. It is not a substitute for clinical diagnosis. All findings should
+                    be reviewed and interpreted by a qualified sleep medicine specialist. The AHI threshold values used
+                    follow AASM (American Academy of Sleep Medicine) guidelines.
+                </p>
+            </div>
+        </div>
+
+    </div><!-- /report-body -->
+
+    <!-- Report footer -->
+    <div class="report-footer-band">
+        <span>Generated by OSA Detection System &nbsp;·&nbsp; AI-Powered Analysis</span>
+        <span id="reportFooterDate">—</span>
+        <span>Report ID: RPT-{{ data_file.id }}-{{ data_file.analysis.id }}</span>
+    </div>
+
+</div><!-- /reportDocument -->
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/viz_report.js') }}"></script>
+{% endblock %}

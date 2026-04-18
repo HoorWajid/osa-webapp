@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}My Patients{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="bi bi-people"></i> My Patients</h2>
+        <hr>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-12">
+        <a href="{{ url_for('doctor.assign_patient') }}" class="btn btn-primary">
+            <i class="bi bi-person-plus"></i> Assign New Patient
+        </a>
+        <a href="{{ url_for('doctor.dashboard') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+</div>
+
+{% if patients_data %}
+<div class="row">
+    {% for data in patients_data %}
+    <div class="col-md-6 mb-3">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-person-circle"></i> 
+                    {% if data.patient.profile and data.patient.profile.first_name %}
+                        {{ data.patient.profile.first_name }} {{ data.patient.profile.last_name }}
+                    {% else %}
+                        {{ data.patient.username }}
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <p><strong><i class="bi bi-envelope"></i> Email:</strong> {{ data.patient.email }}</p>
+                
+                {% if data.patient.profile %}
+                    {% if data.patient.profile.phone %}
+                    <p><strong><i class="bi bi-telephone"></i> Phone:</strong> {{ data.patient.profile.phone }}</p>
+                    {% endif %}
+                    
+                    {% if data.patient.profile.date_of_birth %}
+                    <p><strong><i class="bi bi-calendar"></i> DOB:</strong> {{ data.patient.profile.date_of_birth.strftime('%Y-%m-%d') }}</p>
+                    {% endif %}
+                {% endif %}
+                
+                <p><strong><i class="bi bi-calendar-check"></i> Assigned:</strong> {{ data.assignment.assigned_at.strftime('%Y-%m-%d') }}</p>
+                <p><strong><i class="bi bi-file-earmark-spreadsheet"></i> Data Files:</strong> 
+                    <span class="badge bg-info">{{ data.data_file_count }}</span>
+                </p>
+                
+                {% if data.latest_analysis %}
+                <p><strong><i class="bi bi-clipboard-data"></i> Last Analysis:</strong> 
+                    {% if data.latest_analysis.osa_detected %}
+                        <span class="badge bg-warning">OSA Detected - {{ data.latest_analysis.severity.title() }}</span>
+                    {% else %}
+                        <span class="badge bg-success">Normal</span>
+                    {% endif %}
+                </p>
+                {% endif %}
+                
+                {% if data.assignment.notes %}
+                <div class="alert alert-info mt-2">
+                    <small><strong>Notes:</strong> {{ data.assignment.notes }}</small>
+                </div>
+                {% endif %}
+                
+                <div class="d-grid mt-3">
+                    <a href="{{ url_for('doctor.patient_detail', patient_id=data.patient.id) }}" 
+                       class="btn btn-primary">
+                        <i class="bi bi-eye"></i> View Full Details
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> You haven't assigned any patients yet. 
+    <a href="{{ url_for('doctor.assign_patient') }}" class="alert-link">Assign your first patient</a>
+</div>
+{% endif %}
+{% endblock %}

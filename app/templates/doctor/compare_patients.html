@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+
+{% block title %}Compare Patients{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="icon-wrap">
+            <i class="bi bi-people"></i>
+        </div>
+        <div>
+            <h2>Compare Patients</h2>
+            <p class="text-muted mb-0" style="font-size:0.9rem;">
+                Select up to two patients to compare their OSA analysis history side by side.
+            </p>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-12">
+            <a href="{{ url_for('doctor.dashboard') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Patient Selector -->
+    <div class="card shadow mb-4">
+        <div class="card-header">
+            <i class="bi bi-funnel me-2"></i>Select Patients to Compare
+        </div>
+        <div class="card-body">
+            <form method="GET" action="">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-5">
+                        <label class="form-label">Patient 1</label>
+                        <select name="patient1" class="form-select">
+                            <option value="">-- Select Patient --</option>
+                            {% for p in all_patients %}
+                            <option value="{{ p.id }}" {% if selected_p1 == p.id %}selected{% endif %}>
+                                {{ p.display_name }} (@{{ p.username }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label">Patient 2 <span class="text-muted fw-normal">(optional)</span></label>
+                        <select name="patient2" class="form-select">
+                            <option value="">-- Select Patient --</option>
+                            {% for p in all_patients %}
+                            <option value="{{ p.id }}" {% if selected_p2 == p.id %}selected{% endif %}>
+                                {{ p.display_name }} (@{{ p.username }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-search me-1"></i>Compare
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if not all_patients %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle me-2"></i>
+        You have no assigned patients yet.
+        <a href="{{ url_for('doctor.assign_patient') }}" class="alert-link">Assign a patient</a> to get started.
+    </div>
+
+    {% elif not patient1_data %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle me-2"></i>
+        Select at least one patient above to view their analysis history.
+    </div>
+
+    {% else %}
+
+    <!-- Patient Cards Side by Side -->
+    <div class="row mb-4">
+
+        <!-- Patient 1 -->
+        <div class="col-md-{% if patient2_data %}6{% else %}12{% endif %} mb-3">
+            <div class="card shadow h-100" style="border-top: 4px solid var(--teal);">
+                <div class="card-header" style="background: linear-gradient(135deg, #e8f7f7, #d0efef);">
+                    <div class="d-flex align-items-center gap-2">
+                        <div style="width:36px;height:36px;border-radius:50%;
+                                    background:linear-gradient(135deg,var(--teal-light),var(--teal));
+                                    display:flex;align-items:center;justify-content:center;
+                                    color:#fff;font-weight:700;">
+                            {{ patient1_data.patient.display_name[0].upper() }}
+                        </div>
+                        <div>
+                            <strong>{{ patient1_data.patient.display_name }}</strong>
+                            <small class="text-muted d-block">@{{ patient1_data.patient.username }}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if patient1_data.analyses %}
+                        <div class="row text-center mb-3 g-2">
+                            <div class="col-4">
+                                <div class="p-2 rounded" style="background:#e8f7f7;">
+                                    <h4 class="mb-0" style="color:var(--teal);">
+                                        {{ "%.1f"|format(patient1_data.analyses[0].ahi_score) }}
+                                    </h4>
+                                    <small class="text-muted">Latest AHI</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-2 rounded" style="background:#e8f7f7;">
+                                    {% set sev = patient1_data.analyses[0].severity %}
+                                    <h4 class="mb-0
+                                        {% if sev == 'normal' %}text-success
+                                        {% elif sev == 'mild' %}text-warning
+                                        {% else %}text-danger{% endif %}">
+                                        {{ sev.title() }}
+                                    </h4>
+                                    <small class="text-muted">Severity</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-2 rounded" style="background:#e8f7f7;">
+                                    <h4 class="mb-0" style="color:var(--purple);">
+                                        {{ patient1_data.analyses|length }}
+                                    </h4>
+                                    <small class="text-muted">Analyses</small>
+                                </div>
+                            </div>
+                        </div>
+                        <canvas id="p1Chart" height="180"></canvas>
+                    {% else %}
+                        <div class="alert alert-info mb-0">
+                            <i class="bi bi-info-circle me-2"></i>No completed analyses yet.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Patient 2 -->
+        {% if patient2_data %}
+        <div class="col-md-6 mb-3">
+            <div class="card shadow h-100" style="border-top: 4px solid var(--purple);">
+                <div class="card-header" style="background: linear-gradient(135deg, #f0eaf7, #e4d8f0);">
+                    <div class="d-flex align-items-center gap-2">
+                        <div style="width:36px;height:36px;border-radius:50%;
+                                    background:linear-gradient(135deg,var(--lavender),var(--purple));
+                                    display:flex;align-items:center;justify-content:center;
+                                    color:#fff;font-weight:700;">
+                            {{ patient2_data.patient.display_name[0].upper() }}
+                        </div>
+                        <div>
+                            <strong>{{ patient2_data.patient.display_name }}</strong>
+                            <small class="text-muted d-block">@{{ patient2_data.patient.username }}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if patient2_data.analyses %}
+                        <div class="row text-center mb-3 g-2">
+                            <div class="col-4">
+                                <div class="p-2 rounded" style="background:#f0eaf7;">
+                                    <h4 class="mb-0" style="color:var(--purple);">
+                                        {{ "%.1f"|format(patient2_data.analyses[0].ahi_score) }}
+                                    </h4>
+                                    <small class="text-muted">Latest AHI</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-2 rounded" style="background:#f0eaf7;">
+                                    {% set sev2 = patient2_data.analyses[0].severity %}
+                                    <h4 class="mb-0
+                                        {% if sev2 == 'normal' %}text-success
+                                        {% elif sev2 == 'mild' %}text-warning
+                                        {% else %}text-danger{% endif %}">
+                                        {{ sev2.title() }}
+                                    </h4>
+                                    <small class="text-muted">Severity</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-2 rounded" style="background:#f0eaf7;">
+                                    <h4 class="mb-0" style="color:var(--teal);">
+                                        {{ patient2_data.analyses|length }}
+                                    </h4>
+                                    <small class="text-muted">Analyses</small>
+                                </div>
+                            </div>
+                        </div>
+                        <canvas id="p2Chart" height="180"></canvas>
+                    {% else %}
+                        <div class="alert alert-info mb-0">
+                            <i class="bi bi-info-circle me-2"></i>No completed analyses yet.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Side-by-side Metrics Bar Chart -->
+    {% if patient2_data and patient1_data.analyses and patient2_data.analyses %}
+    <div class="card shadow mb-4">
+        <div class="card-header">
+            <i class="bi bi-bar-chart me-2"></i>Latest Metrics Comparison
+        </div>
+        <div class="card-body">
+            <div id="comparisonData"
+                 data-p1-name="{{ patient1_data.patient.display_name }}"
+                 data-p2-name="{{ patient2_data.patient.display_name }}"
+                 data-p1-ahi="{{ patient1_data.analyses[0].ahi_score }}"
+                 data-p1-apnea="{{ patient1_data.analyses[0].apnea_events or 0 }}"
+                 data-p1-hypopnea="{{ patient1_data.analyses[0].hypopnea_events or 0 }}"
+                 data-p1-o2="{{ patient1_data.analyses[0].oxygen_desaturation or 0 }}"
+                 data-p2-ahi="{{ patient2_data.analyses[0].ahi_score }}"
+                 data-p2-apnea="{{ patient2_data.analyses[0].apnea_events or 0 }}"
+                 data-p2-hypopnea="{{ patient2_data.analyses[0].hypopnea_events or 0 }}"
+                 data-p2-o2="{{ patient2_data.analyses[0].oxygen_desaturation or 0 }}"
+                 style="display:none;">
+            </div>
+            <canvas id="comparisonChart" height="80"></canvas>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- History Tables -->
+    <div class="row">
+        <!-- Patient 1 History -->
+        <div class="col-md-{% if patient2_data %}6{% else %}12{% endif %} mb-3">
+            <div class="card shadow">
+                <div class="card-header" style="background:linear-gradient(135deg,#e8f7f7,#d0efef);">
+                    <i class="bi bi-table me-2"></i>
+                    {{ patient1_data.patient.display_name }} — Analysis History
+                </div>
+                <div class="card-body p-0">
+                    {% if patient1_data.analyses %}
+                    <div class="table-responsive" style="max-height:300px; overflow-y:auto;">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>AHI</th>
+                                    <th>Severity</th>
+                                    <th>Result</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for a in patient1_data.analyses %}
+                                <tr>
+                                    <td>{{ a.completed_at.strftime('%Y-%m-%d') }}</td>
+                                    <td><strong>{{ "%.1f"|format(a.ahi_score) }}</strong></td>
+                                    <td>
+                                        {% if a.severity == 'normal' %}
+                                            <span class="badge bg-success">Normal</span>
+                                        {% elif a.severity == 'mild' %}
+                                            <span class="badge bg-warning">Mild</span>
+                                        {% elif a.severity == 'moderate' %}
+                                            <span class="badge" style="background:#fd7e14;">Moderate</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Severe</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if a.osa_detected %}
+                                            <span class="badge bg-warning">OSA</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Normal</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('doctor.view_analysis', analysis_id=a.id) }}"
+                                           class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;">
+                                            View
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="p-3 text-muted text-center">No analyses yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Patient 2 History -->
+        {% if patient2_data %}
+        <div class="col-md-6 mb-3">
+            <div class="card shadow">
+                <div class="card-header" style="background:linear-gradient(135deg,#f0eaf7,#e4d8f0);">
+                    <i class="bi bi-table me-2"></i>
+                    {{ patient2_data.patient.display_name }} — Analysis History
+                </div>
+                <div class="card-body p-0">
+                    {% if patient2_data.analyses %}
+                    <div class="table-responsive" style="max-height:300px; overflow-y:auto;">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>AHI</th>
+                                    <th>Severity</th>
+                                    <th>Result</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for a in patient2_data.analyses %}
+                                <tr>
+                                    <td>{{ a.completed_at.strftime('%Y-%m-%d') }}</td>
+                                    <td><strong>{{ "%.1f"|format(a.ahi_score) }}</strong></td>
+                                    <td>
+                                        {% if a.severity == 'normal' %}
+                                            <span class="badge bg-success">Normal</span>
+                                        {% elif a.severity == 'mild' %}
+                                            <span class="badge bg-warning">Mild</span>
+                                        {% elif a.severity == 'moderate' %}
+                                            <span class="badge" style="background:#fd7e14;">Moderate</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Severe</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if a.osa_detected %}
+                                            <span class="badge bg-warning">OSA</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Normal</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('doctor.view_analysis', analysis_id=a.id) }}"
+                                           class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;">
+                                            View
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="p-3 text-muted text-center">No analyses yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% endif %}
+</div>
+
+<!-- Hidden data for charts -->
+{% if patient1_data and patient1_data.analyses %}
+<div id="p1ChartData"
+     data-analyses="{{ patient1_json }}"
+     style="display:none;"></div>
+{% endif %}
+
+{% if patient2_data and patient2_data.analyses %}
+<div id="p2ChartData"
+     data-analyses="{{ patient2_json }}"
+     style="display:none;"></div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/compare_patients.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+{% block title %}Patient Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display&display=swap');
+
+/* ── Page shell ─────────────────────────────────────────── */
+.pd-wrap {
+  font-family: 'DM Sans', sans-serif;
+  background: #FBF7F2;
+  min-height: 100vh;
+  padding: 24px 28px 40px;
+  color: #2C3E50;
+}
+
+/* ── Page header ────────────────────────────────────────── */
+.pd-header {
+  display: flex; align-items: center; gap: 16px;
+  background: linear-gradient(120deg, #fff 55%, #E8FAF8 100%);
+  border-radius: 20px; padding: 22px 28px;
+  margin-bottom: 26px;
+  box-shadow: 0 2px 16px rgba(72,187,180,.10);
+  border: 1px solid #E6F4F3;
+}
+.pd-header-icon {
+  width: 54px; height: 54px; border-radius: 15px; flex-shrink: 0;
+  background: linear-gradient(135deg, #48BBB4, #2A9690);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; color: #fff;
+  box-shadow: 0 4px 14px rgba(72,187,180,.30);
+}
+.pd-header h2 { margin: 0; font-size: 1.45rem; font-weight: 700; color: #1A2E2C; }
+.pd-header p  { margin: 0; font-size: .88rem; color: #7A9E9C; }
+
+/* ── Stat cards ─────────────────────────────────────────── */
+.pd-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 24px; }
+.pd-stat {
+  background: #fff; border-radius: 18px;
+  padding: 20px 22px 18px;
+  border: 1px solid #EEF5F4;
+  box-shadow: 0 2px 12px rgba(72,187,180,.07);
+  position: relative; overflow: hidden;
+  transition: transform .2s, box-shadow .2s;
+}
+.pd-stat:hover { transform: translateY(-3px); box-shadow: 0 6px 22px rgba(72,187,180,.13); }
+.pd-stat::before {
+  content:''; position:absolute; left:0; top:0; bottom:0;
+  width: 4px; border-radius: 4px 0 0 4px;
+}
+.pd-stat.c-teal::before    { background: #48BBB4; }
+.pd-stat.c-purple::before  { background: #9B8EC4; }
+.pd-stat.c-sage::before    { background: #7FB8A8; }
+.pd-stat-label {
+  font-size: .72rem; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: #9AB8B5; margin-bottom: 6px;
+}
+.pd-stat-num {
+  font-family: 'DM Serif Display', serif;
+  font-size: 2.4rem; line-height: 1; font-weight: 400;
+  margin-bottom: 8px;
+}
+.pd-stat.c-teal .pd-stat-num   { color: #48BBB4; }
+.pd-stat.c-purple .pd-stat-num { color: #9B8EC4; }
+.pd-stat.c-sage .pd-stat-num   { color: #7FB8A8; }
+.pd-stat-bg-icon {
+  position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
+  font-size: 2.8rem; opacity: .07;
+}
+.pd-stat-link {
+  display: inline-block; font-size: .76rem; font-weight: 600;
+  padding: 4px 14px; border-radius: 20px; text-decoration: none;
+  transition: opacity .2s;
+}
+.pd-stat-link:hover { opacity: .78; }
+.pd-stat.c-teal   .pd-stat-link { background: rgba(72,187,180,.12); color: #2A9690; }
+.pd-stat.c-purple .pd-stat-link { background: rgba(155,142,196,.12); color: #6A5A9E; }
+
+/* ── Two-col layout ─────────────────────────────────────── */
+.pd-row { display: grid; grid-template-columns: 5fr 7fr; gap: 20px; margin-bottom: 22px; }
+
+/* ── Generic card ───────────────────────────────────────── */
+.pd-card {
+  background: #fff; border-radius: 18px;
+  border: 1px solid #EEF5F4;
+  box-shadow: 0 2px 12px rgba(72,187,180,.07);
+  overflow: hidden;
+}
+.pd-card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 15px 22px; border-bottom: 1px solid #F0F6F5;
+  background: linear-gradient(to right, #FAFEFE, #fff);
+}
+.pd-card-head-title {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 600; font-size: .93rem; color: #1A2E2C;
+}
+.pd-card-head-title i { color: #48BBB4; font-size: 1rem; }
+.pd-card-head-link {
+  font-size: .78rem; font-weight: 600; color: #48BBB4;
+  text-decoration: none;
+}
+.pd-card-head-link:hover { color: #2A9690; }
+.pd-card-body { padding: 18px 22px; }
+
+/* ── Action buttons ─────────────────────────────────────── */
+.pd-actions { display: flex; flex-direction: column; gap: 9px; }
+.pd-action {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 16px; border-radius: 12px;
+  font-weight: 500; font-size: .87rem;
+  text-decoration: none; color: #2C3E50;
+  border: 1.5px solid #E6F0EE;
+  transition: all .18s;
+}
+.pd-action i { font-size: 1.05rem; width: 20px; text-align: center; flex-shrink: 0; }
+.pd-action.primary {
+  background: linear-gradient(135deg, #48BBB4, #2A9690);
+  color: #fff !important; border-color: transparent;
+  box-shadow: 0 3px 12px rgba(72,187,180,.28);
+}
+.pd-action.primary:hover { box-shadow: 0 5px 18px rgba(72,187,180,.40); transform: translateY(-1px); }
+.pd-action:not(.primary):hover {
+  border-color: #48BBB4; color: #2A9690; background: rgba(72,187,180,.04);
+}
+
+/* ── Step list ──────────────────────────────────────────── */
+.pd-steps { display: flex; flex-direction: column; gap: 0; }
+.pd-step {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 13px 0; border-bottom: 1px solid #F4F9F8;
+}
+.pd-step:last-child { border-bottom: none; padding-bottom: 0; }
+.pd-step-circle {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .82rem;
+}
+.step-done    { background: linear-gradient(135deg,#48BBB4,#2A9690); color:#fff; box-shadow: 0 2px 8px rgba(72,187,180,.30); }
+.step-pending { background: #F0F4F4; color: #9AB8B5; }
+.pd-step-title { font-weight: 600; font-size: .88rem; color: #1A2E2C; margin-bottom: 2px; }
+.pd-step-desc  { font-size: .78rem; color: #9AB8B5; margin: 0; }
+.pd-step-btn {
+  display: inline-block; margin-top: 6px; font-size: .75rem; font-weight: 600;
+  padding: 4px 12px; border-radius: 16px; text-decoration: none;
+  background: rgba(72,187,180,.10); color: #2A9690; transition: opacity .2s;
+}
+.pd-step-btn:hover { opacity: .8; }
+
+/* ── Recent files ───────────────────────────────────────── */
+.pd-file-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 22px; border-bottom: 1px solid #F0F6F5;
+  text-decoration: none; color: inherit;
+  transition: background .15s;
+}
+.pd-file-row:last-child { border-bottom: none; }
+.pd-file-row:hover { background: rgba(72,187,180,.035); }
+.pd-file-icon {
+  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+  background: rgba(72,187,180,.10);
+  display: flex; align-items: center; justify-content: center;
+  color: #48BBB4; font-size: 1rem;
+}
+.pd-file-name { font-weight: 600; font-size: .86rem; }
+.pd-file-meta { font-size: .74rem; color: #9AB8B5; }
+.pd-tags { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.pd-tag {
+  display: inline-block; padding: 3px 10px; border-radius: 20px;
+  font-size: .70rem; font-weight: 600;
+}
+.t-type      { background: rgba(155,142,196,.13); color: #6A5A9E; }
+.t-done      { background: rgba(72,187,180,.12);  color: #2A9690; }
+.t-process   { background: rgba(255,186,73,.15);  color: #9A6200; }
+.t-fail      { background: rgba(220,60,60,.10);   color: #A02020; }
+.t-up        { background: rgba(72,187,180,.10);  color: #2A9690; }
+.t-osa       { background: rgba(247,165,120,.15); color: #C04820; }
+.t-normal    { background: rgba(72,187,180,.12);  color: #2A9690; }
+
+/* ── Mini donut ─────────────────────────────────────────── */
+.pd-donut-wrap { display: flex; align-items: center; gap: 18px; padding: 8px 0; }
+.pd-donut { position: relative; width: 76px; height: 76px; flex-shrink: 0; }
+.pd-donut svg { transform: rotate(-90deg); }
+.pd-donut-label {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.22rem; line-height: 1; color: #1A2E2C;
+}
+.pd-donut-label small { font-family: 'DM Sans', sans-serif; font-size: .58rem; color: #9AB8B5; font-weight: 500; }
+
+@media (max-width: 900px) {
+  .pd-stats { grid-template-columns: 1fr 1fr; }
+  .pd-row   { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .pd-wrap  { padding: 14px 12px 30px; }
+  .pd-stats { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pd-wrap">
+
+  <!-- Header -->
+  <div class="pd-header">
+    <div class="pd-header-icon"><i class="bi bi-person-heart"></i></div>
+    <div>
+      <h2>Patient Dashboard</h2>
+      <p>Welcome back, <strong>{{ current_user.display_name }}</strong> — here's your health snapshot</p>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="pd-stats">
+    <div class="pd-stat c-teal">
+      <div class="pd-stat-label">Data Files</div>
+      <div class="pd-stat-num">{{ total_data_files }}</div>
+      <i class="bi bi-file-earmark-spreadsheet pd-stat-bg-icon"></i>
+      <a href="{{ url_for('patient.my_data_files') }}" class="pd-stat-link">View All →</a>
+    </div>
+    <div class="pd-stat c-purple">
+      <div class="pd-stat-label">Analyses</div>
+      <div class="pd-stat-num">{{ recent_analyses|length }}</div>
+      <i class="bi bi-clipboard-pulse pd-stat-bg-icon"></i>
+      <a href="{{ url_for('patient.compare_results') }}" class="pd-stat-link">View Results →</a>
+    </div>
+    <div class="pd-stat c-sage">
+      <div class="pd-stat-label">My Doctors</div>
+      <div class="pd-stat-num">{{ current_user.assigned_doctors|length }}</div>
+      <i class="bi bi-person-badge pd-stat-bg-icon"></i>
+    </div>
+  </div>
+
+  <!-- Quick Actions + Getting Started -->
+  <div class="pd-row">
+
+    <!-- Quick Actions -->
+    <div class="pd-card">
+      <div class="pd-card-head">
+        <div class="pd-card-head-title"><i class="bi bi-lightning-charge-fill"></i> Quick Actions</div>
+      </div>
+      <div class="pd-card-body">
+        <div class="pd-actions">
+          <a href="{{ url_for('patient.upload_data_file') }}" class="pd-action primary">
+            <i class="bi bi-cloud-upload"></i> Upload PSG / CSV Data
+          </a>
+          <a href="{{ url_for('patient.my_data_files') }}" class="pd-action">
+            <i class="bi bi-list-ul"></i> View My Data Files
+          </a>
+          <a href="{{ url_for('patient.demographics') }}" class="pd-action">
+            <i class="bi bi-clipboard-data"></i> Update Health Demographics
+          </a>
+          <a href="{{ url_for('patient.profile') }}" class="pd-action">
+            <i class="bi bi-person-gear"></i> Update Profile
+          </a>
+          <a href="{{ url_for('patient.compare_results') }}" class="pd-action">
+            <i class="bi bi-bar-chart-line"></i> Compare My Results
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Getting Started -->
+    <div class="pd-card">
+      <div class="pd-card-head">
+        <div class="pd-card-head-title"><i class="bi bi-check2-all"></i> Getting Started</div>
+      </div>
+      <div class="pd-card-body" style="padding-top:10px;padding-bottom:10px;">
+        <p style="font-size:.8rem;color:#9AB8B5;margin-bottom:6px;">
+          Complete these steps to get the most out of OSA detection:
+        </p>
+        <div class="pd-steps">
+
+          <div class="pd-step">
+            {% if current_user.profile and current_user.profile.first_name %}
+            <div class="pd-step-circle step-done"><i class="bi bi-check-lg"></i></div>
+            {% else %}
+            <div class="pd-step-circle step-pending">1</div>
+            {% endif %}
+            <div>
+              <div class="pd-step-title">Complete Your Profile</div>
+              <p class="pd-step-desc">Add your personal information</p>
+              {% if not current_user.profile or not current_user.profile.first_name %}
+              <a href="{{ url_for('patient.profile') }}" class="pd-step-btn">Complete Now</a>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="pd-step">
+            <div class="pd-step-circle step-pending">2</div>
+            <div>
+              <div class="pd-step-title">Fill Health Demographics</div>
+              <p class="pd-step-desc">Health data improves analysis accuracy</p>
+              <a href="{{ url_for('patient.demographics') }}" class="pd-step-btn" style="background:rgba(155,142,196,.10);color:#6A5A9E;">Fill Now</a>
+            </div>
+          </div>
+
+          <div class="pd-step">
+            {% if total_data_files > 0 %}
+            <div class="pd-step-circle step-done"><i class="bi bi-check-lg"></i></div>
+            {% else %}
+            <div class="pd-step-circle step-pending">3</div>
+            {% endif %}
+            <div>
+              <div class="pd-step-title">Upload PSG / CSV Data</div>
+              <p class="pd-step-desc">Upload your sleep study file for AI analysis</p>
+              {% if total_data_files == 0 %}
+              <a href="{{ url_for('patient.upload_data_file') }}" class="pd-step-btn">Upload Now</a>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="pd-step">
+            {% if recent_analyses %}
+            <div class="pd-step-circle step-done"><i class="bi bi-check-lg"></i></div>
+            {% else %}
+            <div class="pd-step-circle step-pending">4</div>
+            {% endif %}
+            <div>
+              <div class="pd-step-title">Review Your Results</div>
+              <p class="pd-step-desc">View AI analysis and doctor feedback</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Data Files -->
+  {% if recent_data_files %}
+  <div class="pd-card">
+    <div class="pd-card-head">
+      <div class="pd-card-head-title"><i class="bi bi-clock-history"></i> Recent Data Files</div>
+      <a href="{{ url_for('patient.my_data_files') }}" class="pd-card-head-link">View All →</a>
+    </div>
+    {% for data_file in recent_data_files %}
+    <a href="{{ url_for('patient.data_file_detail', file_id=data_file.id) }}" class="pd-file-row">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="pd-file-icon"><i class="bi bi-file-earmark-spreadsheet"></i></div>
+        <div>
+          <div class="pd-file-name">{{ data_file.original_filename }}</div>
+          <div class="pd-file-meta">{{ data_file.upload_date.strftime('%Y-%m-%d') }}</div>
+        </div>
+      </div>
+      <div class="pd-tags">
+        <span class="pd-tag t-type">{{ data_file.file_type.upper() }}</span>
+        <span class="pd-tag
+          {% if data_file.status=='completed' %}t-done
+          {% elif data_file.status=='processing' %}t-process
+          {% elif data_file.status=='failed' %}t-fail
+          {% else %}t-up{% endif %}">
+          {{ data_file.status.title() }}
+        </span>
+        {% if data_file.analysis %}
+        <span class="pd-tag {% if data_file.analysis.osa_detected %}t-osa{% else %}t-normal{% endif %}">
+          {% if data_file.analysis.osa_detected %}OSA Detected{% else %}Normal{% endif %}
+        </span>
+        {% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

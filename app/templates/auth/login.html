@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card shadow-sm" style="border-top:4px solid var(--teal);border-radius:12px;">
+            <div class="card-body p-5">
+
+                <div class="text-center mb-4">
+                    <div style="width:56px;height:56px;border-radius:50%;
+                                background:linear-gradient(135deg,var(--teal-light),var(--teal));
+                                display:flex;align-items:center;justify-content:center;
+                                margin:0 auto 1rem;font-size:1.6rem;color:#fff;">
+                        <i class="bi bi-box-arrow-in-right"></i>
+                    </div>
+                    <h3 class="mb-0" style="font-weight:700;">Welcome Back</h3>
+                    <small class="text-muted">Sign in to OSA Detection System</small>
+                </div>
+
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <div class="mb-3">
+                        {{ form.username.label(class="form-label fw-semibold") }}
+                        <div class="input-group">
+                            <span class="input-group-text bg-white">
+                                <i class="bi bi-person" style="color:var(--teal);"></i>
+                            </span>
+                            {# autocomplete="username" allows password managers but not clipboard injection #}
+                            {{ form.username(class="form-control form-control-lg",
+                               placeholder="Enter your username",
+                               autocomplete="username",
+                               spellcheck="false",
+                               autocapitalize="none") }}
+                        </div>
+                        {% if form.username.errors %}
+                        <div class="text-danger mt-1"><small>{{ form.username.errors[0] | e }}</small></div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-1">
+                        {{ form.password.label(class="form-label fw-semibold") }}
+                        <div class="input-group">
+                            <span class="input-group-text bg-white">
+                                <i class="bi bi-lock" style="color:var(--teal);"></i>
+                            </span>
+                            {#
+                              autocomplete="current-password" allows password managers
+                              (which are more secure than memorised passwords) while
+                              still blocking browser autofill on shared workstations
+                              when combined with a session timeout.
+                            #}
+                            {{ form.password(class="form-control form-control-lg",
+                               placeholder="Enter your password",
+                               id="loginPassword",
+                               autocomplete="current-password") }}
+                            <button class="btn btn-outline-secondary" type="button"
+                                    id="toggleLoginPwd"
+                                    aria-label="Show/hide password"
+                                    tabindex="-1">
+                                <i class="bi bi-eye" id="loginPwdIcon"></i>
+                            </button>
+                        </div>
+                        {% if form.password.errors %}
+                        <div class="text-danger mt-1"><small>{{ form.password.errors[0] | e }}</small></div>
+                        {% endif %}
+                    </div>
+
+                    <div class="text-end mb-4">
+                        <a href="{{ url_for('auth.forgot_password') }}"
+                           class="text-decoration-none"
+                           style="font-size:0.85rem;color:var(--teal);">
+                            <i class="bi bi-question-circle me-1"></i>Forgot password?
+                        </a>
+                    </div>
+
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary btn-lg",
+                           style="background:var(--teal);border-color:var(--teal);font-weight:600;") }}
+                    </div>
+                </form>
+
+                <hr class="my-4">
+                <div class="text-center" style="font-size:0.9rem;">
+                    Don't have an account?
+                    <a href="{{ url_for('auth.register') }}"
+                       class="fw-semibold text-decoration-none"
+                       style="color:var(--teal);">Register here</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{# SECURITY FIX: event listener replaces inline onclick — CSP nonce required for inline handlers #}
+<script nonce="{{ csp_nonce() }}">
+document.getElementById('toggleLoginPwd').addEventListener('click', function() {
+    const inp  = document.getElementById('loginPassword');
+    const icon = document.getElementById('loginPwdIcon');
+    if (inp.type === 'password') {
+        inp.type = 'text';
+        icon.className = 'bi bi-eye-slash';
+    } else {
+        inp.type = 'password';
+        icon.className = 'bi bi-eye';
+    }
+});
+</script>
+{% endblock %}

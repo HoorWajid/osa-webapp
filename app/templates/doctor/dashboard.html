@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block extra_css %}
+<style nonce="{{ csp_nonce() }}">
+.license-tile { border-top: 4px solid var(--teal); }
+.license-tile.license-expired { border-top-color: #dc3545; }
+.license-tile.license-warning { border-top-color: #ffc107; }
+.license-tile.license-ok     { border-top-color: var(--teal); }
+.text-teal { color: var(--teal); }
+</style>
+{% endblock %}
+
+{% block title %}Doctor Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+
+{# ══ LICENSE EXPIRY BANNER ══════════════════════════════════════════════════
+   Shown when license is expired, critical (1 day), or warning (7 days).
+   Expired status also locks patient access features.
+#}
+{% if expiry_status == 'expired' %}
+<div class="alert d-flex align-items-start gap-3 mb-4"
+     style="background:#fde8e8;border:1px solid #e05252;border-left:5px solid #dc3545;border-radius:12px;">
+    <i class="bi bi-x-octagon-fill text-danger fs-3 flex-shrink-0 mt-1"></i>
+    <div class="flex-grow-1">
+        <h5 class="mb-1 text-danger">Medical License Expired</h5>
+        <p class="mb-2" style="font-size:0.9rem;">
+            Your medical license on file has <strong>expired</strong>.
+            Patient access features have been <strong>locked</strong> until you submit
+            an updated license and it is approved by an administrator.
+        </p>
+        <a href="{{ url_for('doctor.verification') }}" class="btn btn-danger btn-sm">
+            <i class="bi bi-arrow-repeat me-1"></i>Submit New License Now
+        </a>
+    </div>
+</div>
+
+{% elif expiry_status == 'critical' %}
+<div class="alert d-flex align-items-start gap-3 mb-4"
+     style="background:#fdf5e4;border:1px solid #f0a500;border-left:5px solid #ffc107;border-radius:12px;">
+    <i class="bi bi-exclamation-triangle-fill text-warning fs-3 flex-shrink-0 mt-1"></i>
+    <div class="flex-grow-1">
+        <h5 class="mb-1" style="color:#854f0b;">License Expires Tomorrow</h5>
+        <p class="mb-2" style="font-size:0.9rem;">
+            Your medical license expires <strong>tomorrow</strong>.
+            If not renewed, patient access features will be automatically locked.
+        </p>
+        <a href="{{ url_for('doctor.verification') }}" class="btn btn-warning btn-sm">
+            <i class="bi bi-arrow-repeat me-1"></i>Renew License
+        </a>
+    </div>
+</div>
+
+{% elif expiry_status == 'warning' %}
+<div class="alert d-flex align-items-start gap-3 mb-4"
+     style="background:#fff8e6;border:1px solid #f0c060;border-left:5px solid #ffc107;border-radius:12px;">
+    <i class="bi bi-clock-history text-warning fs-3 flex-shrink-0 mt-1"></i>
+    <div class="flex-grow-1">
+        <h5 class="mb-1" style="color:#854f0b;">License Expiring Soon</h5>
+        <p class="mb-2" style="font-size:0.9rem;">
+            Your medical license expires in <strong>{{ license_days }} day{{ 's' if license_days != 1 }}</strong>.
+            Please submit a renewal before it expires to avoid losing patient access.
+        </p>
+        <a href="{{ url_for('doctor.verification') }}" class="btn btn-outline-warning btn-sm">
+            <i class="bi bi-arrow-repeat me-1"></i>Renew License
+        </a>
+    </div>
+</div>
+{% endif %}
+
+{# ══ VERIFICATION PENDING NOTICE ════════════════════════════════════════════ #}
+{% if current_user.verification_status == 'pending' %}
+<div class="alert alert-info d-flex align-items-center gap-3 mb-4" style="border-radius:12px;">
+    <i class="bi bi-hourglass-split fs-4 flex-shrink-0"></i>
+    <div>
+        <strong>Verification Pending</strong> — Your documents are under admin review.
+        You will be notified once approved.
+    </div>
+</div>
+{% elif current_user.verification_status == 'not_submitted' %}
+<div class="alert alert-warning d-flex align-items-center gap-3 mb-4" style="border-radius:12px;">
+    <i class="bi bi-shield-exclamation fs-4 flex-shrink-0"></i>
+    <div>
+        <strong>Verification Required</strong> — Submit your medical license to unlock patient access.
+        <a href="{{ url_for('doctor.verification') }}" class="ms-2 btn btn-sm btn-warning">
+            <i class="bi bi-upload me-1"></i>Submit Documents
+        </a>
+    </div>
+</div>
+{% endif %}
+
+{# ══ DASHBOARD STATS ════════════════════════════════════════════════════════ #}
+{% set locked = (expiry_status == 'expired') or (current_user.verification_status not in ('approved',)) %}
+
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center py-4" style="border-top:4px solid var(--teal);">
+            <i class="bi bi-people fs-1" style="color:var(--teal);"></i>
+            <h3 class="mt-2 mb-0">
+                {% if not locked %}
+                {{ current_user.assigned_patients | selectattr('is_active') | list | length }}
+                {% else %}—{% endif %}
+            </h3>
+            <small class="text-muted">Assigned Patients</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center py-4" style="border-top:4px solid var(--teal);">
+            <i class="bi bi-graph-up fs-1" style="color:var(--teal);"></i>
+            <h3 class="mt-2 mb-0">—</h3>
+            <small class="text-muted">Analyses This Week</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center py-4" style="border-top:4px solid var(--teal);">
+            <i class="bi bi-clock-history fs-1" style="color:var(--teal);"></i>
+            <h3 class="mt-2 mb-0">—</h3>
+            <small class="text-muted">Pending Reviews</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        {# Use classes instead of inline Jinja style attrs to avoid CSS linter false positives #}
+        {% if expiry_status == 'expired' %}
+        {% set tile_color_var = '#dc3545' %}
+        {% set tile_icon_color = 'text-danger' %}
+        {% elif expiry_status in ('critical', 'warning') %}
+        {% set tile_color_var = '#ffc107' %}
+        {% set tile_icon_color = 'text-warning' %}
+        {% else %}
+        {% set tile_color_var = '' %}
+        {% set tile_icon_color = '' %}
+        {% endif %}
+        <div class="card shadow-sm text-center py-4 license-tile
+            {% if expiry_status == 'expired' %}license-expired
+            {% elif expiry_status in ('critical','warning') %}license-warning
+            {% else %}license-ok{% endif %}">
+            <i class="bi bi-patch-check fs-1 {{ tile_icon_color if tile_icon_color else 'text-teal' }}"></i>
+            <h3 class="mt-2 mb-0" style="font-size:1rem;">
+                {% if current_user.doctor_profile and current_user.doctor_profile.license_expiry %}
+                    {{ current_user.doctor_profile.license_expiry.strftime('%b %d, %Y') }}
+                {% else %}
+                    Not set
+                {% endif %}
+            </h3>
+            <small class="text-muted">License Expiry</small>
+        </div>
+    </div>
+</div>
+
+{# ══ QUICK ACTIONS ══════════════════════════════════════════════════════════ #}
+<div class="card shadow-sm">
+    <div class="card-header"><i class="bi bi-lightning me-2"></i>Quick Actions</div>
+    <div class="card-body d-flex flex-wrap gap-3 p-4">
+        {% if not locked %}
+        <a href="{{ url_for('doctor.patients') }}" class="btn btn-primary">
+            <i class="bi bi-people me-2"></i>My Patients
+        </a>
+        <a href="{{ url_for('doctor.assign_patient') }}" class="btn btn-outline-primary">
+            <i class="bi bi-person-plus me-2"></i>Assign Patient
+        </a>
+        <a href="{{ url_for('doctor.research_request') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-journal-medical me-2"></i>Research Data
+        </a>
+        {% else %}
+        <div class="alert alert-secondary w-100 mb-0 py-2">
+            <i class="bi bi-lock me-2"></i>
+            Patient access features are locked.
+            {% if expiry_status == 'expired' %}
+            <a href="{{ url_for('doctor.verification') }}" class="ms-2">Renew your license</a> to restore access.
+            {% else %}
+            Complete verification to access patients.
+            {% endif %}
+        </div>
+        {% endif %}
+        <a href="{{ url_for('doctor.doctor_profile') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-person-gear me-2"></i>My Profile
+        </a>
+        <a href="{{ url_for('doctor.verification') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-shield-check me-2"></i>Verification
+        </a>
+    </div>
+</div>
+
+{% endblock %}

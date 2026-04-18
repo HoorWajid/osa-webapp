@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% block title %}HRV Trend — {{ data_file.original_filename }}{% endblock %}
+{% block page_title %}HRV Trend Analysis{% endblock %}
+
+{% block extra_css %}
+<style>
+.viz-header {
+    background: linear-gradient(135deg, var(--teal-dark) 0%, var(--teal) 60%, var(--teal-light) 100%);
+    border-radius: 20px;
+    padding: 1.8rem 2rem;
+    color: #fff;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+}
+.viz-header::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 160px; height: 160px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 50%;
+}
+.viz-header h2 { color: #fff; font-size: 1.5rem; margin-bottom: 0.2rem; }
+.viz-header p  { color: rgba(255,255,255,0.8); font-size: 0.88rem; margin: 0; }
+
+.metric-pill {
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 50px;
+    padding: 0.3rem 1rem;
+    font-size: 0.82rem;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stat-tile {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.2rem;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.stat-tile:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(8,151,157,0.14); }
+.stat-tile .value { font-size: 1.8rem; font-weight: 800; color: var(--teal-dark); line-height: 1; }
+.stat-tile .unit  { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-tile .label { font-size: 0.82rem; color: var(--text-muted); margin-top: 0.3rem; }
+.stat-tile .badge-range {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 50px;
+    margin-top: 0.4rem;
+    display: inline-block;
+}
+
+.chart-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 1.2rem;
+}
+.chart-card h5 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--teal-dark);
+    margin-bottom: 0.3rem;
+}
+.chart-card .subtitle {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+}
+
+.domain-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, var(--teal-light), var(--teal));
+    color: #fff;
+    border-radius: 8px;
+    padding: 0.2rem 0.7rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 1rem;
+}
+
+.interpretation-box {
+    border-left: 4px solid var(--teal);
+    background: linear-gradient(135deg, #e8f7f7, #f4fbfb);
+    border-radius: 0 12px 12px 0;
+    padding: 1rem 1.2rem;
+    margin-top: 1.2rem;
+}
+.interpretation-box h6 { color: var(--teal-dark); font-size: 0.85rem; margin-bottom: 0.4rem; }
+.interpretation-box p  { color: var(--text-muted); font-size: 0.82rem; margin: 0; line-height: 1.6; }
+
+.no-data-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: var(--text-muted);
+}
+.no-data-state i { font-size: 3rem; opacity: 0.3; display: block; margin-bottom: 1rem; }
+
+.nav-pill-tabs .nav-link {
+    border-radius: 50px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.4rem 1.1rem;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+}
+.nav-pill-tabs .nav-link.active {
+    background: var(--teal);
+    color: #fff;
+    border-color: var(--teal);
+}
+.nav-pill-tabs .nav-link:hover:not(.active) {
+    border-color: var(--teal-light);
+    color: var(--teal-dark);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% set doctor_view = doctor_view if doctor_view is defined else false %}
+
+{# Serialize features to JSON for JS #}
+<script id="featuresData" type="application/json">{{ features | tojson }}</script>
+<script id="analysisData" type="application/json">{
+    "ahi_score": {{ data_file.analysis.ahi_score | round(2) }},
+    "severity": "{{ data_file.analysis.severity }}",
+    "osa_detected": {{ 'true' if data_file.analysis.osa_detected else 'false' }},
+    "confidence": {{ data_file.analysis.confidence_score | round(3) }},
+    "apnea_events": {{ data_file.analysis.apnea_events or 0 }},
+    "hypopnea_events": {{ data_file.analysis.hypopnea_events or 0 }},
+    "completed_at": "{{ data_file.analysis.completed_at.strftime('%Y-%m-%d %H:%M') if data_file.analysis.completed_at else 'N/A' }}",
+    "file_id": {{ data_file.id }},
+    "signal_api": "{{ url_for('doctor.api_signals_full', file_id=data_file.id) if doctor_view else url_for('patient.api_signals_clean', file_id=data_file.id) }}",
+    "doctor_view": {{ 'true' if doctor_view else 'false' }},
+    "file_type": "{{ data_file.file_type }}"
+}</script>
+
+<!-- Header -->
+<div class="viz-header">
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+        <div>
+            <h2><i class="bi bi-heart-pulse me-2"></i>HRV Trend Analysis</h2>
+            <p class="mb-2">{{ data_file.original_filename }}</p>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                <span class="metric-pill"><i class="bi bi-calendar3"></i>
+                    {{ data_file.analysis.completed_at.strftime('%Y-%m-%d') if data_file.analysis.completed_at else 'N/A' }}
+                </span>
+                <span class="metric-pill"><i class="bi bi-file-earmark"></i> {{ data_file.file_type.upper() }}</span>
+                <span class="metric-pill"><i class="bi bi-activity"></i> Heart Rate Variability</span>
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('doctor.doc_viz_spo2' if doctor_view else 'patient.viz_spo2', file_id=data_file.id) }}" class="btn btn-sm"
+               style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:10px;">
+                <i class="bi bi-lungs me-1"></i>SpO₂ View
+            </a>
+            <a href="{{ url_for('doctor.doc_viz_report' if doctor_view else 'patient.viz_report', file_id=data_file.id) }}" class="btn btn-sm"
+               style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:10px;">
+                <i class="bi bi-file-text me-1"></i>Full Report
+            </a>
+            {% if doctor_view %}
+            <a href="{{ url_for('doctor.compare_reports') }}" class="btn btn-sm"
+               style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:10px;">
+                <i class="bi bi-bar-chart-steps me-1"></i>Compare
+            </a>
+            <a href="{{ url_for('doctor.patient_detail', patient_id=data_file.patient_id) }}" class="btn btn-sm"
+               style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:10px;">
+                <i class="bi bi-arrow-left me-1"></i>Back to Patient
+            </a>
+            {% else %}
+            <a href="{{ url_for('patient.data_file_detail', file_id=data_file.id) }}" class="btn btn-sm"
+               style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:10px;">
+                <i class="bi bi-arrow-left me-1"></i>Back
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Domain tabs -->
+<!-- CSV notice — shown by JS when file_type is csv -->
+<div id="csvHrvNotice" style="display:none;" class="alert alert-info d-flex align-items-start gap-3 mb-3" style="border-radius:14px;">
+    <i class="bi bi-info-circle-fill fs-5 mt-1 flex-shrink-0"></i>
+    <div>
+        <strong>HRV metrics not available for CSV files.</strong><br>
+        HRV analysis requires raw ECG signal data from an <strong>EDF file</strong>.
+        A CSV file only contains pre-computed summary statistics — the beat-to-beat
+        RR interval series needed for SDNN, RMSSD, SD1/SD2, and entropy metrics is absent.<br>
+        <span class="text-muted" style="font-size:0.85rem;">
+            To get HRV data, upload the original EDF recording from the PSG device.
+            Any HRV columns present in the CSV (e.g. <code>sdnn</code>, <code>rmssd</code>) will still be displayed if found.
+        </span>
+    </div>
+</div>
+
+<ul class="nav nav-pill-tabs mb-3" id="hrvTabs">
+    <li class="nav-item"><a class="nav-link active" href="#" data-tab="time">Time Domain</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-tab="freq">Frequency Domain</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-tab="nonlinear">Nonlinear</a></li>
+</ul>
+
+<!-- ── TIME DOMAIN ── -->
+<div id="tabTime">
+    <div class="row g-3 mb-3" id="timeDomainTiles">
+        <!-- filled by JS -->
+    </div>
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="chart-card">
+                <div class="domain-badge"><i class="bi bi-clock"></i> Time Domain</div>
+                <h5>SDNN &amp; RMSSD — Variability Metrics</h5>
+                <p class="subtitle">Standard deviation of NN intervals (SDNN) and root mean square of successive differences (RMSSD). Higher values indicate better autonomic health.</p>
+                <canvas id="chartTimeDomain" height="240"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="chart-card h-100">
+                <div class="domain-badge"><i class="bi bi-heart"></i> HR Distribution</div>
+                <h5>Mean RR Intervals</h5>
+                <p class="subtitle">Distribution of RR intervals across the recording.</p>
+                <canvas id="chartRR" height="240"></canvas>
+                <div class="interpretation-box mt-3">
+                    <h6><i class="bi bi-info-circle me-1"></i>What does this mean?</h6>
+                    <p id="timeDomainInterpretation">Loading interpretation…</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── FREQUENCY DOMAIN ── -->
+<div id="tabFreq" style="display:none;">
+    <div class="row g-3 mb-3" id="freqDomainTiles"></div>
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <div class="domain-badge" style="background:linear-gradient(135deg,var(--lavender),var(--purple));">
+                    <i class="bi bi-soundwave"></i> Frequency Domain
+                </div>
+                <h5>LF / HF Power Bands</h5>
+                <p class="subtitle">Low Frequency (0.04–0.15 Hz) reflects sympathetic + parasympathetic tone. High Frequency (0.15–0.4 Hz) reflects parasympathetic (vagal) tone.</p>
+                <canvas id="chartLFHF" height="280"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <div class="domain-badge" style="background:linear-gradient(135deg,var(--lavender),var(--purple));">
+                    <i class="bi bi-pie-chart"></i> Power Distribution
+                </div>
+                <h5>Spectral Power Components</h5>
+                <p class="subtitle">VLF, LF, HF and total power proportions showing autonomic balance.</p>
+                <canvas id="chartPowerPie" height="280"></canvas>
+                <div class="interpretation-box mt-3">
+                    <h6><i class="bi bi-info-circle me-1"></i>LF/HF Ratio</h6>
+                    <p id="freqDomainInterpretation">Loading interpretation…</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── NONLINEAR ── -->
+<div id="tabNonlinear" style="display:none;">
+    <div class="row g-3 mb-3" id="nonlinearTiles"></div>
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <div class="domain-badge" style="background:linear-gradient(135deg,#6EC6CA,#05585C);">
+                    <i class="bi bi-diagram-3"></i> Nonlinear
+                </div>
+                <h5>Poincaré Plot Metrics — SD1 &amp; SD2</h5>
+                <p class="subtitle">SD1 (short-term) and SD2 (long-term) HRV from Poincaré scatter plot analysis.</p>
+                <canvas id="chartPoincare" height="280"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <div class="domain-badge" style="background:linear-gradient(135deg,#6EC6CA,#05585C);">
+                    <i class="bi bi-bar-chart-steps"></i> Complexity
+                </div>
+                <h5>CSI, CVI &amp; Sample Entropy</h5>
+                <p class="subtitle">Cardiac Sympathetic Index (CSI), Cardiac Vagal Index (CVI), and Sample Entropy measuring signal complexity.</p>
+                <canvas id="chartComplexity" height="280"></canvas>
+                <div class="interpretation-box mt-3">
+                    <h6><i class="bi bi-info-circle me-1"></i>Complexity Analysis</h6>
+                    <p id="nonlinearInterpretation">Loading interpretation…</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/viz_hrv.js') }}"></script>
+{% endblock %}

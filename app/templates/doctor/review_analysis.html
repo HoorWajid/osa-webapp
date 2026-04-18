@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Review Analysis{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <div class="page-header">
+        <div class="icon-wrap">
+            <i class="bi bi-pencil-square"></i>
+        </div>
+        <div>
+            <h2>{% if analysis.status == 'reviewed' %}Update Review{% else %}Review Analysis{% endif %}</h2>
+            <p class="text-muted mb-0">Patient: <strong>{{ patient.display_name }}</strong></p>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <a href="{{ url_for('doctor.view_analysis', analysis_id=analysis.id) }}"
+           class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Back to Analysis
+        </a>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- Left: Analysis Summary -->
+        <div class="col-md-4">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <i class="bi bi-clipboard-data me-2"></i>Analysis Summary
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Patient</small>
+                        <strong>{{ patient.display_name }}</strong>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Date</small>
+                        <strong>{{ analysis.completed_at.strftime('%Y-%m-%d') if analysis.completed_at else '—' }}</strong>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">File</small>
+                        <strong>{{ analysis.data_file.original_filename }}</strong>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Result</small>
+                        {% if analysis.osa_detected %}
+                            <span class="badge bg-warning text-dark fs-6">OSA Detected</span>
+                        {% else %}
+                            <span class="badge bg-success fs-6">Normal</span>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Severity</small>
+                        {% set sev = analysis.severity %}
+                        <span class="badge fs-6
+                            {% if sev == 'severe' %}bg-danger
+                            {% elif sev == 'moderate' %}bg-warning text-dark
+                            {% elif sev == 'mild' %}bg-info text-dark
+                            {% else %}bg-success{% endif %}">
+                            {{ sev.title() if sev else '—' }}
+                        </span>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">AHI Score</small>
+                        <strong class="fs-5">{{ "%.1f"|format(analysis.ahi_score) if analysis.ahi_score else '—' }}</strong>
+                        <small class="text-muted"> events/hr</small>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Confidence</small>
+                        <strong>{{ "%.1f"|format(analysis.confidence_score * 100) if analysis.confidence_score else '—' }}%</strong>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Status</small>
+                        {% if analysis.status == 'reviewed' %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-check me-1"></i>Reviewed
+                            </span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-hourglass me-1"></i>Pending Review
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    {% if analysis.status == 'reviewed' %}
+                    <div class="alert mt-3"
+                         style="background:#e8f7f7; border:1px solid var(--teal-light);
+                                border-radius:10px; font-size:0.85rem;">
+                        <i class="bi bi-info-circle me-1" style="color:var(--teal);"></i>
+                        This analysis has already been reviewed. You can update your notes below.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Review Form -->
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header">
+                    <i class="bi bi-pencil me-2"></i>
+                    {% if analysis.status == 'reviewed' %}Update Your Review{% else %}Add Your Review{% endif %}
+                </div>
+                <div class="card-body p-4">
+
+                    <!-- ── CSRF TOKEN IS CRITICAL — use form with hidden_tag ── -->
+                    <form method="POST"
+                          action="{{ url_for('doctor.review_analysis', analysis_id=analysis.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-journal-text me-2"
+                                   style="color:var(--teal);"></i>Doctor's Notes
+                            </label>
+                            <textarea name="doctor_notes" class="form-control" rows="7"
+                                      placeholder="Add your clinical observations, interpretations, and assessment...">{{ analysis.doctor_notes or '' }}</textarea>
+                            <small class="text-muted">
+                                Include your professional assessment of the results
+                            </small>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-list-check me-2"
+                                   style="color:var(--purple);"></i>Recommendations
+                            </label>
+                            <textarea name="recommendations" class="form-control" rows="7"
+                                      placeholder="Add treatment recommendations, follow-up actions, lifestyle changes...">{{ analysis.recommendations or '' }}</textarea>
+                            <small class="text-muted">
+                                Provide actionable recommendations for the patient
+                            </small>
+                        </div>
+
+                        <!-- Tips -->
+                        <div class="alert"
+                             style="background:#f0fbfb; border:1px solid var(--teal-light);
+                                    border-radius:10px;">
+                            <strong style="color:var(--teal);">
+                                <i class="bi bi-lightbulb me-1"></i>Tips for a complete review:
+                            </strong>
+                            <ul class="mb-0 mt-2 small text-muted">
+                                <li>Clinical interpretation of the AHI score
+                                    (Normal &lt;5, Mild 5–15, Moderate 15–30, Severe &gt;30)</li>
+                                <li>Comparison with previous studies (if available)</li>
+                                <li>Recommended treatment options (CPAP, lifestyle changes, etc.)</li>
+                                <li>Follow-up schedule</li>
+                                <li>When to seek emergency care</li>
+                            </ul>
+                        </div>
+
+                        <div class="d-flex gap-2 justify-content-end mt-3">
+                            <a href="{{ url_for('doctor.view_analysis', analysis_id=analysis.id) }}"
+                               class="btn btn-outline-secondary">
+                                <i class="bi bi-x me-1"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-check-circle me-1"></i>
+                                {% if analysis.status == 'reviewed' %}Update Review{% else %}Save Review{% endif %}
+                            </button>
+                        </div>
+                    </form>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

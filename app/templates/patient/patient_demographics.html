@@ -1,0 +1,645 @@
+{% extends "base.html" %}
+{% block title %}Patient Demographics{% endblock %}
+
+{% block extra_css %}
+{# SECURITY FIX: nonce added to inline style block for CSP compliance #}
+<style nonce="{{ csp_nonce() }}">
+.demo-header {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 1.2rem 1.5rem; border-radius: 16px;
+    background: linear-gradient(135deg, var(--teal-dark), var(--teal));
+    color: #fff; margin-bottom: 1.5rem;
+}
+.demo-header .h-icon {
+    width: 52px; height: 52px; background: rgba(255,255,255,0.18);
+    border-radius: 14px; display: flex; align-items: center;
+    justify-content: center; font-size: 1.5rem; flex-shrink: 0;
+}
+.demo-header h2 { margin: 0; font-size: 1.4rem; font-weight: 800; color: #fff; }
+.demo-header p  { margin: 0; font-size: 0.88rem; opacity: 0.88; }
+.csv-drop {
+    border: 2.5px dashed var(--teal-light);
+    border-radius: 14px; padding: 1.4rem 1.6rem;
+    background: var(--bg-page); transition: all 0.2s; cursor: pointer;
+}
+.csv-drop.drag-over { border-color: var(--teal); background: rgba(110,198,202,0.1); }
+.csv-drop input[type="file"] { display: none; }
+.csv-drop-label { display: flex; align-items: center; gap: 14px; cursor: pointer; }
+.csv-drop-icon {
+    width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--teal-light), var(--teal));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; color: #fff; transition: transform 0.2s;
+}
+.csv-drop:hover .csv-drop-icon { transform: scale(1.08); }
+.csv-drop-title { font-weight: 700; font-size: 0.95rem; color: var(--text-dark); }
+.csv-drop-sub   { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+.csv-banner {
+    display: none; border-radius: 11px; padding: 0.7rem 1rem;
+    margin-top: 0.75rem; font-size: 0.875rem;
+    align-items: flex-start; gap: 10px;
+}
+.csv-banner.show { display: flex; }
+.csv-banner.ok   { background:#e4f7f0; border:1px solid var(--teal-light); color:#0a5c44; }
+.csv-banner.warn { background:#fdf5e4; border:1px solid #f0c060; color:#7a5500; }
+.csv-banner.err  { background:#fde8e8; border:1px solid #f5b7b1; color:#7b1c1c; }
+.csv-banner .bi  { font-size: 1.05rem; flex-shrink: 0; margin-top: 1px; }
+.form-control.csv-hi, .form-select.csv-hi {
+    border-color: var(--teal) !important;
+    background: rgba(110,198,202,0.07) !important;
+}
+.form-check-input.csv-hi { outline: 2px solid var(--teal); }
+.csv-tag {
+    display: inline-block; font-size: 0.62rem; font-weight: 700;
+    background: var(--teal); color: #fff;
+    padding: 0px 6px; border-radius: 20px; margin-left: 5px;
+    vertical-align: middle; opacity: 0; transition: opacity 0.3s;
+}
+.csv-tag.on { opacity: 1; }
+.sec-div {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.77rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text-muted); margin: 1.2rem 0 0.75rem;
+}
+.sec-div::after { content:''; flex:1; height:1px; background: var(--border); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <div class="demo-header">
+        <div class="h-icon"><i class="bi bi-clipboard-data"></i></div>
+        <div>
+            <h2>Health Demographics</h2>
+            <p>Complete your health profile — or upload a CSV file to auto-fill fields automatically.</p>
+        </div>
+    </div>
+
+    <div class="alert mb-4" style="background:var(--bg-page);border:1px solid var(--teal-light);border-radius:12px;">
+        <i class="bi bi-shield-lock me-2" style="color:var(--teal);"></i>
+        <strong>Privacy Notice:</strong> All information is confidential and secured.
+        Only your assigned doctors can access this data.
+    </div>
+
+    <!-- CSV Smart Import -->
+    <div class="card mb-4" style="border-top:4px solid var(--teal);">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span><i class="bi bi-filetype-csv me-2"></i>Auto-Fill from CSV</span>
+            <span class="badge bg-primary" style="font-size:0.7rem;letter-spacing:.5px;">Smart Import</span>
+        </div>
+        <div class="card-body p-4">
+            <p class="text-muted mb-3" style="font-size:0.875rem; line-height:1.6;">
+                Upload any CSV that contains demographic data.
+                Columns matching known field names (like <code>age_s1</code>, <code>bmi_s1</code>,
+                <code>systbp</code>, <code>ess_s1</code>&hellip;) will be filled automatically.
+                <strong>The first data row is used.</strong>
+            </p>
+            <div class="csv-drop" id="csvDrop">
+                <label class="csv-drop-label" for="csvFile">
+                    <div class="csv-drop-icon"><i class="bi bi-file-earmark-spreadsheet"></i></div>
+                    <div>
+                        <div class="csv-drop-title" id="csvFileName">
+                            Click to choose CSV &nbsp;<span style="font-weight:400;color:var(--text-muted);font-size:0.85rem;">or drag &amp; drop here</span>
+                        </div>
+                        <div class="csv-drop-sub">Accepted: .csv &mdash; only the first row of data is imported</div>
+                    </div>
+                </label>
+                <input type="file" id="csvFile" accept=".csv">
+            </div>
+            <div id="csvSpinner" style="display:none;" class="mt-2">
+                <div class="progress" style="height:5px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%;"></div>
+                </div>
+                <small class="text-muted">Parsing CSV&hellip;</small>
+            </div>
+            <div class="csv-banner" id="csvBanner">
+                <i class="bi" id="csvBannerIcon"></i>
+                <span id="csvBannerText"></span>
+            </div>
+            <div id="unmatchedBox" style="display:none; margin-top:.6rem;">
+                <details>
+                    <summary style="cursor:pointer;font-size:0.8rem;color:var(--text-muted);">
+                        <i class="bi bi-question-circle me-1"></i>
+                        <span id="unmatchedCount"></span> column(s) had no matching field
+                    </summary>
+                    <div id="unmatchedList"
+                         style="font-size:0.77rem;color:var(--text-muted);margin-top:.4rem;
+                                padding:.5rem;background:var(--bg-page);border-radius:8px;line-height:1.7;"></div>
+                </details>
+            </div>
+            <div id="clearWrap" style="display:none; margin-top:.75rem;">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="clearBtn">
+                    <i class="bi bi-x-circle me-1"></i>Clear auto-filled values
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {# ══ VIEW MODE ══ #}
+    {% if has_data and not edit_mode %}
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <div>
+            <h5 class="mb-0">Your Health Demographics</h5>
+            <small class="text-muted">
+                Last updated: {{ demographics.updated_at.strftime('%B %d, %Y') if demographics.updated_at else 'Not recorded' }}
+            </small>
+        </div>
+        <a href="{{ url_for('patient.demographics') }}?edit=1" class="btn btn-primary">
+            <i class="bi bi-pencil me-1"></i>Edit Demographics
+        </a>
+    </div>
+    <div class="row g-4 mb-4">
+        {% set d = demographics %}
+        {% if d.age_s1 or d.gender or d.bmi_s1 or d.weight %}
+        <div class="col-12"><div class="card shadow-sm">
+            <div class="card-header"><i class="bi bi-person me-2"></i>Basic Demographics</div>
+            <div class="card-body p-4"><div class="row g-3">
+                {% if d.age_s1 %}<div class="col-md-2"><small class="text-muted d-block">Age</small><strong>{{ d.age_s1 }} yrs</strong></div>{% endif %}
+                {% if d.gender %}<div class="col-md-2"><small class="text-muted d-block">Gender</small><strong>{{ d.gender | title | e }}</strong></div>{% endif %}
+                {% if d.bmi_s1 %}<div class="col-md-2"><small class="text-muted d-block">BMI</small><strong>{{ "%.1f"|format(d.bmi_s1) }}</strong></div>{% endif %}
+                {% if d.weight %}<div class="col-md-2"><small class="text-muted d-block">Weight</small><strong>{{ d.weight }} kg</strong></div>{% endif %}
+                {% if d.height %}<div class="col-md-2"><small class="text-muted d-block">Height</small><strong>{{ d.height }} cm</strong></div>{% endif %}
+                {% if d.neck20 %}<div class="col-md-2"><small class="text-muted d-block">Neck</small><strong>{{ d.neck20 }} cm</strong></div>{% endif %}
+            </div></div>
+        </div></div>
+        {% endif %}
+        {% if d.systbp or d.diasbp %}
+        <div class="col-12"><div class="card shadow-sm">
+            <div class="card-header"><i class="bi bi-heart-pulse me-2"></i>Blood Pressure</div>
+            <div class="card-body p-4"><div class="row g-3">
+                {% if d.systbp %}<div class="col-md-3"><small class="text-muted d-block">Systolic</small><strong>{{ d.systbp }} mmHg</strong></div>{% endif %}
+                {% if d.diasbp %}<div class="col-md-3"><small class="text-muted d-block">Diastolic</small><strong>{{ d.diasbp }} mmHg</strong></div>{% endif %}
+            </div></div>
+        </div></div>
+        {% endif %}
+        {% if d.ess_s1 is not none or d.hvsnrd02 or d.hosnr02 %}
+        <div class="col-12"><div class="card shadow-sm">
+            <div class="card-header"><i class="bi bi-moon-stars me-2"></i>Sleep Patterns</div>
+            <div class="card-body p-4"><div class="row g-3">
+                {% if d.ess_s1 is not none %}<div class="col-md-3"><small class="text-muted d-block">ESS Score</small><strong>{{ d.ess_s1 }} / 24</strong></div>{% endif %}
+                {% if d.hosnr02 is not none %}<div class="col-md-3"><small class="text-muted d-block">Snoring (days/wk)</small><strong>{{ d.hosnr02 }}</strong></div>{% endif %}
+                {% if d.loudsn02 is not none %}<div class="col-md-3"><small class="text-muted d-block">Snoring loudness</small><strong>{{ d.loudsn02 }} / 5</strong></div>{% endif %}
+                {% if d.sleepy02 is not none %}<div class="col-md-3"><small class="text-muted d-block">Daytime sleepiness</small><strong>{{ d.sleepy02 }} / 5</strong></div>{% endif %}
+            </div>
+            {% set sflags = [] %}
+            {% if d.hvsnrd02 %}{% set _ = sflags.append('Snores') %}{% endif %}
+            {% if d.stpbrt02 %}{% set _ = sflags.append('Stopped breathing') %}{% endif %}
+            {% if d.slpill15 %}{% set _ = sflags.append('Takes sleep pills') %}{% endif %}
+            {% if sflags %}<div class="mt-3 d-flex gap-2 flex-wrap">{% for f in sflags %}<span class="badge bg-info text-dark">{{ f }}</span>{% endfor %}</div>{% endif %}
+            </div>
+        </div></div>
+        {% endif %}
+    </div>
+    <div class="d-flex justify-content-end mb-5">
+        <a href="{{ url_for('patient.demographics') }}?edit=1" class="btn btn-primary btn-lg">
+            <i class="bi bi-pencil me-1"></i>Edit Full Demographics
+        </a>
+    </div>
+
+    {% else %} {# EDIT MODE #}
+    {% if has_data %}
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h5 class="mb-0">Edit Health Demographics</h5>
+        <a href="{{ url_for('patient.demographics') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-x me-1"></i>Cancel
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Demographics Form -->
+    <form method="POST" novalidate id="demoForm">
+        {{ form.hidden_tag() }}
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-person me-2"></i>Basic Demographics</div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">{{ form.age_s1.label.text }}<span class="csv-tag" id="tag-age_s1">CSV</span></label>
+                        {{ form.age_s1(class="form-control", id="f-age_s1") }}
+                        {% if form.age_s1.errors %}<div class="text-danger"><small>{{ form.age_s1.errors[0] | e }}</small></div>{% endif %}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{{ form.gender.label.text }}<span class="csv-tag" id="tag-gender">CSV</span></label>
+                        {{ form.gender(class="form-select", id="f-gender") }}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{{ form.race.label.text }}<span class="csv-tag" id="tag-race">CSV</span></label>
+                        {{ form.race(class="form-select", id="f-race") }}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{{ form.ethnicity.label.text }}<span class="csv-tag" id="tag-ethnicity">CSV</span></label>
+                        {{ form.ethnicity(class="form-control", id="f-ethnicity") }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-rulers me-2"></i>Body Measurements</div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    {% for fname, ph in [('height','cm'),('weight','kg'),('bmi_s1','calc'),('waist','cm'),('hip','cm'),('neck20','cm')] %}
+                    <div class="col-md-2">
+                        <label class="form-label">{{ form[fname].label.text }}<span class="csv-tag" id="tag-{{ fname }}">CSV</span></label>
+                        {{ form[fname](class="form-control", id="f-"+fname, placeholder=ph) }}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-heart-pulse me-2"></i>Blood Pressure</div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    {% for fname in ['systbp','diasbp','syst120','dias120','syst220','dias220'] %}
+                    <div class="col-md-2">
+                        <label class="form-label">{{ form[fname].label.text }}<span class="csv-tag" id="tag-{{ fname }}">CSV</span></label>
+                        {{ form[fname](class="form-control", id="f-"+fname, placeholder="mmHg") }}
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="sec-div">Hypertension Status</div>
+                <div class="row g-3">
+                    {% for fname in ['htnderv_s1','srhype','htnmed1'] %}
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            {{ form[fname](class="form-check-input", id="f-"+fname) }}
+                            <label class="form-check-label" for="f-{{ fname }}">{{ form[fname].label.text }}<span class="csv-tag" id="tag-{{ fname }}">CSV</span></label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-capsule me-2"></i>Current Medications</div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    {% for fname in ['beta1','ace1','diuret1','lipid1'] %}
+                    <div class="col-md-3">
+                        <div class="form-check">
+                            {{ form[fname](class="form-check-input", id="f-"+fname) }}
+                            <label class="form-check-label" for="f-{{ fname }}">{{ form[fname].label.text }}<span class="csv-tag" id="tag-{{ fname }}">CSV</span></label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-droplet me-2"></i>Lipid Panel</div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    {% for fname in ['chol','hdl','trig'] %}
+                    <div class="col-md-4">
+                        <label class="form-label">{{ form[fname].label.text }}<span class="csv-tag" id="tag-{{ fname }}">CSV</span></label>
+                        {{ form[fname](class="form-control", id="f-"+fname, placeholder="mg/dL") }}
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            {{ form.parrptdiab(class="form-check-input", id="f-parrptdiab") }}
+                            <label class="form-check-label" for="f-parrptdiab">{{ form.parrptdiab.label.text }}<span class="csv-tag" id="tag-parrptdiab">CSV</span></label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-lungs me-2"></i>Pulmonary Function</div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">{{ form.fev1.label.text }}<span class="csv-tag" id="tag-fev1">CSV</span></label>
+                        {{ form.fev1(class="form-control", id="f-fev1", placeholder="L") }}
+                        <small class="text-muted">Forced Expiratory Volume in 1 second</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">{{ form.fvc.label.text }}<span class="csv-tag" id="tag-fvc">CSV</span></label>
+                        {{ form.fvc(class="form-control", id="f-fvc", placeholder="L") }}
+                        <small class="text-muted">Forced Vital Capacity</small>
+                    </div>
+                </div>
+                <div class="sec-div">Respiratory Conditions</div>
+                <div class="row g-3">
+                    {% for fname in ['emphys15','crbron15','copd15','asthma15'] %}
+                    <div class="col-md-3">
+                        <div class="form-check">
+                            {{ form[fname](class="form-check-input", id="f-"+fname) }}
+                            <label class="form-check-label" for="f-{{ fname }}">{{ form[fname].label.text }}<span class="csv-tag" id="tag-{{ fname }}">CSV</span></label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-wind me-2"></i>Smoking History</div>
+            <div class="card-body p-4">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label">{{ form.smokstat_s1.label.text }}<span class="csv-tag" id="tag-smokstat_s1">CSV</span></label>
+                        {{ form.smokstat_s1(class="form-select", id="f-smokstat_s1") }}
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-check mb-2">
+                            {{ form.evsmok15(class="form-check-input", id="f-evsmok15") }}
+                            <label class="form-check-label" for="f-evsmok15">{{ form.evsmok15.label.text }}<span class="csv-tag" id="tag-evsmok15">CSV</span></label>
+                        </div>
+                        <div class="form-check">
+                            {{ form.smknow15(class="form-check-input", id="f-smknow15") }}
+                            <label class="form-check-label" for="f-smknow15">{{ form.smknow15.label.text }}<span class="csv-tag" id="tag-smknow15">CSV</span></label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{{ form.cigday15.label.text }}<span class="csv-tag" id="tag-cigday15">CSV</span></label>
+                        {{ form.cigday15(class="form-control", id="f-cigday15", placeholder="per day") }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-cup-straw me-2"></i>Alcohol &amp; Coffee Consumption</div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">{{ form.alcoh.label.text }}<span class="csv-tag" id="tag-alcoh">CSV</span></label>
+                        {{ form.alcoh(class="form-control", id="f-alcoh", placeholder="drinks/week") }}
+                    </div>
+                    {% for fname, ph in [('wine15',''),('beer15',''),('shots15',''),('coffee15','cups/day')] %}
+                    <div class="col-md-2">
+                        <label class="form-label">{{ form[fname].label.text }}<span class="csv-tag" id="tag-{{ fname }}">CSV</span></label>
+                        {{ form[fname](class="form-control", id="f-"+fname, placeholder=ph) }}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-heart me-2"></i>Cardiovascular History</div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    {% for fname in ['prev_hx_mi','prev_hx_stroke','mi15','stroke15','hf15','cabg15','ca15','angina15'] %}
+                    <div class="col-md-3">
+                        <div class="form-check">
+                            {{ form[fname](class="form-check-input", id="f-"+fname) }}
+                            <label class="form-check-label" for="f-{{ fname }}">{{ form[fname].label.text }}<span class="csv-tag" id="tag-{{ fname }}">CSV</span></label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-moon-stars me-2"></i>Sleep Patterns</div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">{{ form.ess_s1.label.text }}<span class="csv-tag" id="tag-ess_s1">CSV</span></label>
+                        {{ form.ess_s1(class="form-control", id="f-ess_s1", placeholder="0-24") }}
+                        <small class="text-muted">Epworth Sleepiness Scale</small>
+                    </div>
+                    {% for fname, ph in [('hosnr02','days/week'),('loudsn02','1-5'),('yrssnr02','')] %}
+                    <div class="col-md-3">
+                        <label class="form-label">{{ form[fname].label.text }}<span class="csv-tag" id="tag-{{ fname }}">CSV</span></label>
+                        {{ form[fname](class="form-control", id="f-"+fname, placeholder=ph) }}
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="row g-3 mt-1">
+                    {% for fname, ph in [('hostbr02','days/week'),('sleepy02','1-5'),('napshr15','hours')] %}
+                    <div class="col-md-3">
+                        <label class="form-label">{{ form[fname].label.text }}<span class="csv-tag" id="tag-{{ fname }}">CSV</span></label>
+                        {{ form[fname](class="form-control", id="f-"+fname, placeholder=ph) }}
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="row g-3 mt-1">
+                    {% for fname in ['hvsnrd02','stpbrt02','slpill15'] %}
+                    <div class="col-md-3">
+                        <div class="form-check">
+                            {{ form[fname](class="form-check-input", id="f-"+fname) }}
+                            <label class="form-check-label" for="f-{{ fname }}">{{ form[fname].label.text }}<span class="csv-tag" id="tag-{{ fname }}">CSV</span></label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-emoji-smile me-2"></i>Quality of Life</div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    {% for fname, ph in [('pcs_s1','0-100'),('mcs_s1','0-100'),('genhth25','1-5')] %}
+                    <div class="col-md-4">
+                        <label class="form-label">{{ form[fname].label.text }}<span class="csv-tag" id="tag-{{ fname }}">CSV</span></label>
+                        {{ form[fname](class="form-control", id="f-"+fname, placeholder=ph) }}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="alert" style="background:var(--bg-page);border:1px solid var(--teal-light);border-radius:12px;">
+            <i class="bi bi-info-circle me-2" style="color:var(--teal);"></i>
+            <strong>Note:</strong> All fields are optional. More complete data helps doctors provide better care.
+        </div>
+
+        <div class="d-flex gap-2 justify-content-end mt-3 mb-5">
+            {% if has_data %}
+            <a href="{{ url_for('patient.demographics') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-x me-1"></i>Cancel
+            </a>
+            {% else %}
+            <a href="{{ url_for('patient.dashboard') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-x me-1"></i>Cancel
+            </a>
+            {% endif %}
+            {{ form.submit(class="btn btn-primary btn-lg") }}
+        </div>
+    </form>
+    {% endif %} {# end edit_mode #}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce() }}">
+/*
+  Security fixes in this script:
+  1. Nonce-bearing script block (CSP compliant — Talisman won't block it)
+  2. getCsrf() reads directly from WTForms hidden input
+  3. Server error text escaped via escapeHtml() before any DOM insertion
+  4. All user-controlled values set via .value or .textContent, never innerHTML
+*/
+(function () {
+
+    const BOOL = new Set([
+        'htnderv_s1','srhype','htnmed1','beta1','ace1','diuret1','lipid1',
+        'parrptdiab','emphys15','crbron15','copd15','asthma15',
+        'evsmok15','smknow15','prev_hx_mi','prev_hx_stroke',
+        'mi15','stroke15','hf15','cabg15','ca15','angina15',
+        'hvsnrd02','stpbrt02','slpill15',
+    ]);
+
+    const originals = {};
+
+    const drop      = document.getElementById('csvDrop');
+    const input     = document.getElementById('csvFile');
+    const nameEl    = document.getElementById('csvFileName');
+    const spinner   = document.getElementById('csvSpinner');
+    const banner    = document.getElementById('csvBanner');
+    const bannerIco = document.getElementById('csvBannerIcon');
+    const bannerTxt = document.getElementById('csvBannerText');
+    const unmBox    = document.getElementById('unmatchedBox');
+    const unmCnt    = document.getElementById('unmatchedCount');
+    const unmLst    = document.getElementById('unmatchedList');
+    const clearWrap = document.getElementById('clearWrap');
+    const clearBtn  = document.getElementById('clearBtn');
+
+    // SECURITY FIX: escape plain text before inserting via innerHTML
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    drop.addEventListener('dragover',  e => { e.preventDefault(); drop.classList.add('drag-over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+    drop.addEventListener('drop', e => {
+        e.preventDefault(); drop.classList.remove('drag-over');
+        const f = e.dataTransfer.files[0];
+        if (f) go(f);
+    });
+    input.addEventListener('change', () => { if (input.files[0]) go(input.files[0]); });
+
+    clearBtn.addEventListener('click', () => {
+        for (const [id, orig] of Object.entries(originals)) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            if (el.type === 'checkbox') el.checked = (orig === true || orig === 'on');
+            else el.value = orig;
+            el.classList.remove('csv-hi');
+        }
+        document.querySelectorAll('.csv-tag.on').forEach(t => t.classList.remove('on'));
+        hideBanner(); unmBox.style.display = 'none'; clearWrap.style.display = 'none';
+        nameEl.textContent = 'Click to choose CSV';
+        input.value = '';
+    });
+
+    function go(file) {
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            showBannerText('err', 'bi-x-circle', 'Please upload a .csv file.');
+            return;
+        }
+        nameEl.textContent = file.name;
+        hideBanner(); unmBox.style.display = 'none'; clearHighlights();
+        spinner.style.display = 'block';
+
+        const fd = new FormData();
+        fd.append('csv_file', file);
+
+        fetch('{{ url_for("patient.demographics_parse_csv") }}', {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-CSRFToken': getCsrf() },
+        })
+        .then(r => r.json())
+        .then(data => {
+            spinner.style.display = 'none';
+            if (data.error) {
+                // SECURITY FIX: server error escaped before innerHTML insertion
+                showBannerText('err', 'bi-x-circle', escapeHtml(data.error));
+                return;
+            }
+            const n = data.matched_count || 0;
+            if (n === 0) {
+                showBannerText('warn', 'bi-exclamation-triangle',
+                    'No matching fields found. Make sure column names match expected field names ' +
+                    '(age_s1, bmi_s1, systbp, etc.).');
+            } else {
+                fillForm(data.matched);
+                const skipped = (data.total_cols || 0) - n;
+                // Safe: n and skipped are integers from server, string literals are hardcoded
+                showBannerText('ok', 'bi-check-circle-fill',
+                    n + ' field' + (n !== 1 ? 's' : '') + ' filled from CSV.' +
+                    (skipped > 0 ? ' ' + skipped + ' column' + (skipped !== 1 ? 's' : '') + ' had no match.' : ''));
+                clearWrap.style.display = 'block';
+            }
+            if (data.unmatched_cols && data.unmatched_cols.length) {
+                unmCnt.textContent = data.unmatched_cols.length;
+                // SECURITY FIX: textContent for unmatched column names (user CSV headers)
+                unmLst.textContent = data.unmatched_cols.join(', ');
+                unmBox.style.display = 'block';
+            }
+        })
+        .catch(() => {
+            spinner.style.display = 'none';
+            showBannerText('err', 'bi-x-circle', 'Network error — could not reach the server.');
+        });
+    }
+
+    function fillForm(matched) {
+        for (const [field, value] of Object.entries(matched)) {
+            const el = document.getElementById('f-' + field);
+            if (!el) continue;
+            originals['f-' + field] = BOOL.has(field) ? el.checked : el.value;
+            if (BOOL.has(field)) {
+                el.checked = (value === '1');
+            } else if (el.tagName === 'SELECT') {
+                const opts = Array.from(el.options);
+                const hit  = opts.find(o => o.value.toLowerCase() === value.toLowerCase())
+                          || opts.find(o => o.text.toLowerCase().includes(value.toLowerCase()));
+                if (hit) el.value = hit.value; else continue;
+            } else {
+                // SECURITY FIX: value assigned via .value property, never innerHTML
+                el.value = value;
+            }
+            el.classList.add('csv-hi');
+            const tag = document.getElementById('tag-' + field);
+            if (tag) tag.classList.add('on');
+        }
+    }
+
+    function clearHighlights() {
+        document.querySelectorAll('.csv-hi').forEach(e => e.classList.remove('csv-hi'));
+        document.querySelectorAll('.csv-tag.on').forEach(t => t.classList.remove('on'));
+    }
+
+    // SECURITY FIX: all calls now use textContent or escaped strings
+    // 'html' parameter renamed to 'msg' to make it clear it's plain text
+    function showBannerText(type, icon, msg) {
+        banner.className = 'csv-banner show ' + type;
+        bannerIco.className = 'bi ' + icon;
+        bannerTxt.textContent = msg;
+    }
+    function hideBanner() { banner.className = 'csv-banner'; }
+
+    // SECURITY FIX: reads directly from the WTForms hidden CSRF input
+    // The original had a meta tag fallback that was never populated
+    function getCsrf() {
+        const i = document.querySelector('input[name="csrf_token"]');
+        if (!i) { console.error('CSRF token input not found'); return ''; }
+        return i.value;
+    }
+
+})();
+</script>
+{% endblock %}

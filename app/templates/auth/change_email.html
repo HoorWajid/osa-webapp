@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Change Email{% endblock %}
+{% block page_title %}Change Email Address{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+
+        <div class="d-flex align-items-center gap-2 mb-4">
+            {% if current_user.role == 'doctor' %}
+            <a href="{{ url_for('doctor.profile') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i>Back to Profile
+            </a>
+            {% elif current_user.role == 'admin' %}
+            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+            </a>
+            {% else %}
+            <a href="{{ url_for('patient.profile') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i>Back to Profile
+            </a>
+            {% endif %}
+        </div>
+
+        <div class="card shadow-sm" style="border-top:4px solid var(--teal);border-radius:12px;">
+            <div class="card-body p-5">
+
+                <div class="text-center mb-4">
+                    <div style="width:56px;height:56px;border-radius:50%;
+                                background:linear-gradient(135deg,var(--teal-light),var(--teal));
+                                display:flex;align-items:center;justify-content:center;
+                                margin:0 auto 1rem;font-size:1.6rem;color:#fff;">
+                        <i class="bi bi-envelope-check"></i>
+                    </div>
+                    <h3 class="mb-1" style="font-weight:700;">Change Email Address</h3>
+                    <p class="text-muted" style="font-size:0.9rem;">
+                        Current email: <strong>{{ current_user.email }}</strong>
+                    </p>
+                </div>
+
+                <form method="POST" autocomplete="off">
+                    {{ form.hidden_tag() }}
+
+                    {# ── New Email ───────────────────────────────────────── #}
+                    <div class="mb-3">
+                        {{ form.new_email.label(class="form-label fw-semibold") }}
+                        <div class="input-group">
+                            <span class="input-group-text bg-white">
+                                <i class="bi bi-envelope" style="color:var(--teal);"></i>
+                            </span>
+                            {# value="" forces the field empty on first load even if WTForms
+                               tries to pre-fill it from the model; on POST the typed value
+                               is used normally because the form re-renders with request data. #}
+                            {{ form.new_email(
+                                class="form-control",
+                                placeholder="new@email.com",
+                                autocomplete="off",
+                                value="" if not form.new_email.errors else form.new_email.data
+                            ) }}
+                        </div>
+                        {% if form.new_email.errors %}
+                        <div class="text-danger mt-1">
+                            <small>{{ form.new_email.errors[0] }}</small>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {# ── Confirm New Email ───────────────────────────────── #}
+                    <div class="mb-3">
+                        {{ form.confirm_email.label(class="form-label fw-semibold") }}
+                        <div class="input-group">
+                            <span class="input-group-text bg-white">
+                                <i class="bi bi-envelope-fill" style="color:var(--teal);"></i>
+                            </span>
+                            {{ form.confirm_email(
+                                class="form-control",
+                                placeholder="Repeat new email",
+                                autocomplete="off",
+                                value="" if not form.confirm_email.errors else form.confirm_email.data
+                            ) }}
+                        </div>
+                        {% if form.confirm_email.errors %}
+                        <div class="text-danger mt-1">
+                            {# Replace the raw WTForms field-name message with something readable #}
+                            {% set raw_msg = form.confirm_email.errors[0] %}
+                            {% if 'equal' in raw_msg or 'new_email' in raw_msg %}
+                                <small>Emails must match.</small>
+                            {% else %}
+                                <small>{{ raw_msg }}</small>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <hr class="my-3">
+
+                    {# ── Current Password ────────────────────────────────── #}
+                    <div class="mb-4">
+                        {{ form.password.label(class="form-label fw-semibold") }}
+                        <div class="input-group">
+                            <span class="input-group-text bg-white">
+                                <i class="bi bi-lock" style="color:var(--teal);"></i>
+                            </span>
+                            {# type="password" is hardcoded here — the toggle only switches
+                               the live input, so it can never start visible. #}
+                            {{ form.password(
+                                class="form-control",
+                                placeholder="Enter current password to confirm",
+                                id="confirmPwd",
+                                type="password",
+                                autocomplete="new-password",
+                                value=""
+                            ) }}
+                            <button class="btn btn-outline-secondary" type="button"
+                                    onclick="togglePwd('confirmPwd', this)" tabindex="-1">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        {% if form.password.errors %}
+                        <div class="text-danger mt-1">
+                            <small>{{ form.password.errors[0] }}</small>
+                        </div>
+                        {% endif %}
+                        <small class="text-muted">We require your password to protect account changes.</small>
+                    </div>
+
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary btn-lg w-100",
+                           style="background:var(--teal);border-color:var(--teal);font-weight:600;") }}
+                    </div>
+                </form>
+
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('auth.change_password') }}"
+                       class="text-decoration-none" style="font-size:0.85rem;color:var(--teal);">
+                        <i class="bi bi-shield-lock me-1"></i>Change password instead
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function togglePwd(id, btn) {
+    const inp = document.getElementById(id);
+    const icon = btn.querySelector('i');
+    // Guard: never show password on first load — only toggle after user clicks
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    icon.className = inp.type === 'password' ? 'bi bi-eye' : 'bi bi-eye-slash';
+}
+
+// Extra safety: on page load, force the password field type to 'password'
+// in case any browser autofill or extension tried to change it.
+document.addEventListener('DOMContentLoaded', function () {
+    const pwd = document.getElementById('confirmPwd');
+    if (pwd) {
+        pwd.type = 'password';
+        pwd.value = '';   // clear any browser-autofilled value
+    }
+});
+</script>
+{% endblock %}

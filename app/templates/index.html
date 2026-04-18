@@ -1,0 +1,568 @@
+{% extends "base.html" %}
+
+{% block title %}OSA Detection System - Home{% endblock %}
+
+{% block content %}
+<style>
+.hero-section {
+    position: relative;
+    min-height: 88vh;
+    background: linear-gradient(135deg, var(--teal-dark) 0%, var(--teal) 60%, var(--teal-light) 100%);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+}
+.hero-section::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url('https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=1400&q=80')
+                center/cover no-repeat;
+    opacity: 0.18;
+}
+.hero-overlay {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+}
+.hero-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.4);
+    color: #fff;
+    padding: 6px 18px;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 1.2rem;
+    backdrop-filter: blur(6px);
+}
+.hero-title {
+    font-size: clamp(2.2rem, 5vw, 3.8rem);
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.15;
+    margin-bottom: 1.2rem;
+}
+.hero-title span { color: #a8edea; }
+.hero-subtitle {
+    font-size: 1.1rem;
+    color: rgba(255,255,255,0.88);
+    max-width: 560px;
+    margin-bottom: 2rem;
+    line-height: 1.7;
+}
+.hero-btn-primary {
+    background: #fff;
+    color: var(--teal-dark);
+    border: none;
+    padding: 14px 36px;
+    border-radius: 50px;
+    font-weight: 700;
+    font-size: 1rem;
+    transition: all 0.3s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.hero-btn-primary:hover {
+    background: #e8f7f7;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    color: var(--teal-dark);
+}
+.hero-btn-outline {
+    background: transparent;
+    color: #fff;
+    border: 2px solid rgba(255,255,255,0.7);
+    padding: 12px 34px;
+    border-radius: 50px;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: all 0.3s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.hero-btn-outline:hover {
+    background: rgba(255,255,255,0.15);
+    border-color: #fff;
+    color: #fff;
+    transform: translateY(-2px);
+}
+.hero-stats {
+    display: flex;
+    gap: 2.5rem;
+    margin-top: 2.8rem;
+    flex-wrap: wrap;
+}
+.hero-stat h3 {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #fff;
+    margin: 0;
+}
+.hero-stat p {
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.75);
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.hero-card {
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 20px;
+    padding: 2rem;
+    color: #fff;
+    max-width: 340px;
+}
+.hero-card .icon-circle {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+}
+.scroll-indicator {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+    animation: bounce 2s infinite;
+    color: rgba(255,255,255,0.7);
+    font-size: 1.5rem;
+}
+@keyframes bounce {
+    0%,100% { transform: translateX(-50%) translateY(0); }
+    50%      { transform: translateX(-50%) translateY(-8px); }
+}
+.section-title { font-size: 2rem; font-weight: 700; color: var(--teal-dark); }
+.section-sub   { color: var(--text-muted); font-size: 1.05rem; max-width: 520px; margin: 0 auto; }
+
+.feature-card {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem 1.5rem;
+    transition: all 0.3s;
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(8,151,157,0.07);
+    height: 100%;
+    text-align: center;
+}
+.feature-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 12px 32px rgba(8,151,157,0.18);
+    border-color: var(--teal-light);
+}
+.feature-icon {
+    width: 64px; height: 64px;
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.8rem;
+    margin: 0 auto 1.2rem;
+}
+.feature-card h5 { font-weight: 700; color: var(--teal-dark); margin-bottom: 0.6rem; }
+.feature-card p  { color: var(--text-muted); font-size: 0.92rem; margin: 0; line-height: 1.6; }
+
+.step-circle {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--teal), var(--teal-dark));
+    color: #fff;
+    font-size: 1.2rem;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1rem;
+    box-shadow: 0 4px 14px rgba(8,151,157,0.35);
+}
+
+.severity-card {
+    border-radius: 16px;
+    padding: 1.5rem;
+    text-align: center;
+    border: none;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    transition: transform 0.2s;
+}
+.severity-card:hover { transform: translateY(-4px); }
+
+.testimonial-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 1.8rem;
+    box-shadow: 0 2px 16px rgba(8,151,157,0.09);
+    border-left: 4px solid var(--teal);
+    height: 100%;
+}
+.testimonial-card p       { color: #555; font-style: italic; line-height: 1.7; }
+.testimonial-card .author { font-weight: 700; color: var(--teal-dark); margin-top: 1rem; margin-bottom: 0; }
+.testimonial-card .role   { color: var(--text-muted); font-size: 0.85rem; }
+
+.cta-section {
+    background: linear-gradient(135deg, var(--teal-dark) 0%, var(--teal) 100%);
+    border-radius: 24px;
+    padding: 4rem 2rem;
+    text-align: center;
+    color: #fff;
+}
+.cta-section h2 { font-weight: 800; font-size: 2rem; color: #fff; }
+.cta-section p  { font-size: 1.05rem; opacity: 0.9; max-width: 520px; margin: 1rem auto 0; }
+
+.bg-soft-teal  { background: #f0fbfb; }
+.bg-soft-white { background: #fff; }
+</style>
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<section class="hero-section">
+    <div class="hero-overlay">
+        <div class="container py-5">
+            <div class="row align-items-center g-5">
+
+                <!-- Left Content -->
+                <div class="col-lg-7">
+                    <div class="hero-badge">
+                        <i class="bi bi-stars me-1"></i> AI-Powered Sleep Analysis
+                    </div>
+                    <h1 class="hero-title">
+                        Detect <span>Sleep Apnea</span><br>Before It Gets Serious
+                    </h1>
+                    <p class="hero-subtitle">
+                        Upload your PSG or CSV sleep study data and get instant,
+                        machine-learning-powered OSA detection with severity scoring,
+                        trend analysis, and doctor review — all in one platform.
+                    </p>
+
+                    <div class="d-flex flex-wrap gap-3">
+                        {% if current_user.is_authenticated %}
+                            <a href="
+                                {% if current_user.role == 'admin' %}{{ url_for('admin.dashboard') }}
+                                {% elif current_user.role == 'doctor' %}{{ url_for('doctor.dashboard') }}
+                                {% else %}{{ url_for('patient.dashboard') }}
+                                {% endif %}"
+                               class="hero-btn-primary">
+                                <i class="bi bi-speedometer2"></i> Go to Dashboard
+                            </a>
+                            <a href="{{ url_for('auth.logout') }}" class="hero-btn-outline">
+                                <i class="bi bi-box-arrow-right"></i> Logout
+                            </a>
+                        {% else %}
+                            <a href="{{ url_for('auth.register') }}" class="hero-btn-primary">
+                                <i class="bi bi-rocket-takeoff"></i> Get Started Free
+                            </a>
+                            <a href="{{ url_for('auth.login') }}" class="hero-btn-outline">
+                                <i class="bi bi-box-arrow-in-right"></i> Login
+                            </a>
+                        {% endif %}
+                    </div>
+
+                    <div class="hero-stats">
+                        <div class="hero-stat">
+                            <h3>95%</h3>
+                            <p>Detection Accuracy</p>
+                        </div>
+                        <div class="hero-stat">
+                            <h3>&lt;5s</h3>
+                            <p>Analysis Time</p>
+                        </div>
+                        <div class="hero-stat">
+                            <h3>4</h3>
+                            <p>Severity Levels</p>
+                        </div>
+                        <div class="hero-stat">
+                            <h3>3</h3>
+                            <p>User Roles</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Preview Card -->
+                <div class="col-lg-5 d-none d-lg-flex justify-content-end">
+                    <div class="hero-card">
+                        <div class="icon-circle">
+                            <i class="bi bi-activity"></i>
+                        </div>
+                        <h5 class="fw-bold mb-1">Live Analysis Preview</h5>
+                        <p class="mb-3" style="font-size:0.88rem; opacity:0.85;">
+                            Real-time OSA detection from your sleep data
+                        </p>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <small>AHI Score</small><small>25.5 — Moderate</small>
+                            </div>
+                            <div class="progress" style="height:6px; background:rgba(255,255,255,0.2);">
+                                <div class="progress-bar bg-warning" style="width:55%;"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <small>O2 Saturation</small><small>93%</small>
+                            </div>
+                            <div class="progress" style="height:6px; background:rgba(255,255,255,0.2);">
+                                <div class="progress-bar" style="width:93%; background:#6EC6CA;"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <small>Confidence</small><small>76%</small>
+                            </div>
+                            <div class="progress" style="height:6px; background:rgba(255,255,255,0.2);">
+                                <div class="progress-bar" style="width:76%; background:#a8edea;"></div>
+                            </div>
+                        </div>
+                        <div class="pt-2" style="border-top:1px solid rgba(255,255,255,0.2);">
+                            <span class="badge"
+                                  style="background:rgba(204,168,216,0.35); color:#f0d8ff; font-size:0.82rem;">
+                                <i class="bi bi-exclamation-triangle me-1"></i>OSA Detected — Moderate
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <div class="scroll-indicator">
+        <i class="bi bi-chevron-double-down"></i>
+    </div>
+</section>
+
+<!-- ═══════════════ FEATURES ═══════════════ -->
+<section class="py-5 bg-soft-teal">
+    <div class="container py-3">
+        <div class="text-center mb-5">
+            <h2 class="section-title">Everything You Need</h2>
+            <p class="section-sub mt-2">
+                A complete platform for patients, doctors, and administrators
+                to manage OSA detection end-to-end.
+            </p>
+        </div>
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-3">
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:#e8f7f7;">
+                        <i class="bi bi-cpu" style="color:var(--teal);"></i>
+                    </div>
+                    <h5>AI Detection</h5>
+                    <p>Random Forest ML model analyzes AHI, oxygen desaturation,
+                       and 11 key sleep metrics for accurate OSA detection.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:#f0eaf7;">
+                        <i class="bi bi-shield-check" style="color:var(--purple);"></i>
+                    </div>
+                    <h5>Secure &amp; Private</h5>
+                    <p>Role-based access control ensures patients, doctors, and
+                       admins only see what they're authorized to view.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:#e8f7f7;">
+                        <i class="bi bi-graph-up" style="color:var(--teal-dark);"></i>
+                    </div>
+                    <h5>Trend Analysis</h5>
+                    <p>Track your AHI score over time with interactive charts.
+                       Compare results across sessions and monitor progress.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:#f0eaf7;">
+                        <i class="bi bi-person-badge" style="color:var(--purple);"></i>
+                    </div>
+                    <h5>Doctor Review</h5>
+                    <p>Assigned doctors can review results, add clinical notes,
+                       and provide personalized treatment recommendations.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════ HOW IT WORKS ═══════════════ -->
+<section class="py-5 bg-soft-white">
+    <div class="container py-3">
+        <div class="text-center mb-5">
+            <h2 class="section-title">How It Works</h2>
+            <p class="section-sub mt-2">
+                Get your OSA analysis done in three simple steps.
+            </p>
+        </div>
+        <div class="row g-4 text-center">
+            <div class="col-md-4">
+                <div class="step-circle">1</div>
+                <h5 class="fw-bold" style="color:var(--teal-dark);">Upload Your Data</h5>
+                <p class="text-muted" style="font-size:0.93rem;">
+                    Register as a patient and upload your PSG study or CSV sleep
+                    data file directly from your device.
+                </p>
+            </div>
+            <div class="col-md-4">
+                <div class="step-circle">2</div>
+                <h5 class="fw-bold" style="color:var(--teal-dark);">Get Instant Analysis</h5>
+                <p class="text-muted" style="font-size:0.93rem;">
+                    Our ML model extracts features and classifies your OSA severity —
+                    Normal, Mild, Moderate, or Severe — in seconds.
+                </p>
+            </div>
+            <div class="col-md-4">
+                <div class="step-circle">3</div>
+                <h5 class="fw-bold" style="color:var(--teal-dark);">Review with Your Doctor</h5>
+                <p class="text-muted" style="font-size:0.93rem;">
+                    Your assigned doctor reviews results, adds clinical notes,
+                    and recommends the right treatment path.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════ SEVERITY SCALE ═══════════════ -->
+<section class="py-5 bg-soft-teal">
+    <div class="container py-3">
+        <div class="text-center mb-5">
+            <h2 class="section-title">OSA Severity Scale</h2>
+            <p class="section-sub mt-2">
+                AHI (Apnea-Hypopnea Index) is the key metric used to classify
+                sleep apnea severity.
+            </p>
+        </div>
+        <div class="row g-3 justify-content-center">
+            <div class="col-sm-6 col-lg-3">
+                <div class="severity-card" style="border-top:4px solid #198754; background:#f0fff6;">
+                    <div style="font-size:2.2rem; color:#198754;">
+                        <i class="bi bi-check-circle-fill"></i>
+                    </div>
+                    <h5 class="fw-bold mt-2 mb-1" style="color:#198754;">Normal</h5>
+                    <span class="badge mb-2" style="background:#198754;">AHI &lt; 5</span>
+                    <p class="text-muted small mb-0">
+                        No significant sleep apnea. Healthy sleep breathing patterns.
+                    </p>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="severity-card" style="border-top:4px solid var(--lavender); background:#fdf7ff;">
+                    <div style="font-size:2.2rem; color:var(--purple);">
+                        <i class="bi bi-exclamation-circle-fill"></i>
+                    </div>
+                    <h5 class="fw-bold mt-2 mb-1" style="color:var(--purple);">Mild</h5>
+                    <span class="badge mb-2" style="background:var(--purple);">AHI 5–14</span>
+                    <p class="text-muted small mb-0">
+                        Mild OSA. Lifestyle changes and monitoring recommended.
+                    </p>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="severity-card" style="border-top:4px solid var(--teal); background:#e8f7f7;">
+                    <div style="font-size:2.2rem; color:var(--teal);">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                    </div>
+                    <h5 class="fw-bold mt-2 mb-1" style="color:var(--teal);">Moderate</h5>
+                    <span class="badge mb-2" style="background:var(--teal);">AHI 15–29</span>
+                    <p class="text-muted small mb-0">
+                        Moderate OSA. CPAP therapy typically recommended.
+                    </p>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="severity-card" style="border-top:4px solid #dc3545; background:#fff5f5;">
+                    <div style="font-size:2.2rem; color:#dc3545;">
+                        <i class="bi bi-x-circle-fill"></i>
+                    </div>
+                    <h5 class="fw-bold mt-2 mb-1" style="color:#dc3545;">Severe</h5>
+                    <span class="badge mb-2 bg-danger">AHI ≥ 30</span>
+                    <p class="text-muted small mb-0">
+                        Severe OSA. Immediate medical consultation required.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════ TESTIMONIALS ═══════════════ -->
+<section class="py-5 bg-soft-white">
+    <div class="container py-3">
+        <div class="text-center mb-5">
+            <h2 class="section-title">What Our Users Say</h2>
+            <p class="section-sub mt-2">Trusted by patients and healthcare professionals.</p>
+        </div>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="testimonial-card">
+                    <p>"The analysis was incredibly fast. My doctor reviewed my results
+                       the same day and we started treatment immediately.
+                       This platform changed my life."</p>
+                    <p class="author">Sarah M.</p>
+                    <p class="role">Patient — Moderate OSA Diagnosed</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="testimonial-card" style="border-left-color:var(--purple);">
+                    <p>"As a sleep specialist, being able to review patient data and add
+                       clinical notes directly in the platform has streamlined my
+                       workflow tremendously."</p>
+                    <p class="author">Dr. James K.</p>
+                    <p class="role">Sleep Medicine Specialist</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="testimonial-card" style="border-left-color:var(--teal-light);">
+                    <p>"The trend comparison feature lets me track my treatment progress
+                       over months. Seeing my AHI score drop from 28 to 6 is
+                       incredibly motivating."</p>
+                    <p class="author">Ahmed R.</p>
+                    <p class="role">Patient — Post-CPAP Therapy</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════ CTA ═══════════════ -->
+<section class="py-5 bg-soft-teal">
+    <div class="container py-2">
+        <div class="cta-section">
+            <div style="font-size:3rem; margin-bottom:1rem;">
+                <i class="bi bi-heart-pulse-fill"></i>
+            </div>
+            <h2>Ready to Detect OSA Early?</h2>
+            <p>
+                Join thousands of patients getting accurate, AI-powered sleep apnea
+                detection. Upload your first data file today — it takes less than 2 minutes.
+            </p>
+            <div class="d-flex flex-wrap gap-3 justify-content-center mt-4">
+                {% if current_user.is_authenticated %}
+                    <a href="
+                        {% if current_user.role == 'doctor' %}{{ url_for('doctor.dashboard') }}
+                        {% elif current_user.role == 'admin' %}{{ url_for('admin.dashboard') }}
+                        {% else %}{{ url_for('patient.upload_data_file') }}
+                        {% endif %}"
+                       class="hero-btn-primary">
+                        <i class="bi bi-cloud-upload"></i>
+                        {% if current_user.role == 'patient' %}Upload Data Now
+                        {% else %}Go to Dashboard{% endif %}
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('auth.register') }}" class="hero-btn-primary">
+                        <i class="bi bi-person-plus"></i> Create Free Account
+                    </a>
+                    <a href="{{ url_for('auth.login') }}" class="hero-btn-outline">
+                        <i class="bi bi-box-arrow-in-right"></i> Sign In
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

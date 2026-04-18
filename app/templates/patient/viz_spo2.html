@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% block title %}SpO₂ Trend — {{ data_file.original_filename }}{% endblock %}
+{% block page_title %}SpO₂ Trend Analysis{% endblock %}
+
+{% block extra_css %}
+<style>
+.viz-header {
+    background: linear-gradient(135deg, #0a7fa6 0%, #08979D 50%, #6EC6CA 100%);
+    border-radius: 20px;
+    padding: 1.8rem 2rem;
+    color: #fff;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+}
+.viz-header::before {
+    content: '';
+    position: absolute;
+    top: -50px; right: -50px;
+    width: 180px; height: 180px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 50%;
+}
+.viz-header::after {
+    content: '';
+    position: absolute;
+    bottom: -30px; right: 80px;
+    width: 100px; height: 100px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+}
+.viz-header h2 { color: #fff; font-size: 1.5rem; margin-bottom: 0.2rem; }
+.viz-header p  { color: rgba(255,255,255,0.8); font-size: 0.88rem; margin: 0; }
+
+.metric-pill {
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 50px;
+    padding: 0.3rem 1rem;
+    font-size: 0.82rem;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stat-tile {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.2rem;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.stat-tile:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(8,151,157,0.14); }
+.stat-tile .value { font-size: 1.8rem; font-weight: 800; line-height: 1; }
+.stat-tile .unit  { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-tile .label { font-size: 0.82rem; color: var(--text-muted); margin-top: 0.3rem; }
+
+.chart-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 1.2rem;
+}
+.chart-card h5 { font-size: 0.95rem; font-weight: 700; color: var(--teal-dark); margin-bottom: 0.3rem; }
+.chart-card .subtitle { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1rem; }
+
+.domain-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, #0a7fa6, var(--teal));
+    color: #fff;
+    border-radius: 8px;
+    padding: 0.2rem 0.7rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 1rem;
+}
+
+.desaturation-zone {
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    margin-bottom: 0.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.interpretation-box {
+    border-left: 4px solid #0a7fa6;
+    background: linear-gradient(135deg, #e4f3f7, #f0fbfb);
+    border-radius: 0 12px 12px 0;
+    padding: 1rem 1.2rem;
+    margin-top: 1.2rem;
+}
+.interpretation-box h6 { color: var(--teal-dark); font-size: 0.85rem; margin-bottom: 0.4rem; }
+.interpretation-box p  { color: var(--text-muted); font-size: 0.82rem; margin: 0; line-height: 1.6; }
+
+/* ODI gauge */
+.odi-gauge-wrap { position: relative; width: 160px; margin: 0 auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set doctor_view = doctor_view if doctor_view is defined else false %}
+
+<script id="featuresData" type="application/json">{{ features | tojson }}</script>
+<script id="analysisData" type="application/json">{
+    "ahi_score": {{ data_file.analysis.ahi_score | round(2) }},
+    "severity": "{{ data_file.analysis.severity }}",
+    "osa_detected": {{ 'true' if data_file.analysis.osa_detected else 'false' }},
+    "confidence": {{ data_file.analysis.confidence_score | round(3) }},
+    "apnea_events": {{ data_file.analysis.apnea_events or 0 }},
+    "hypopnea_events": {{ data_file.analysis.hypopnea_events or 0 }},
+    "oxygen_desaturation": {{ data_file.analysis.oxygen_desaturation or 0 }},
+    "completed_at": "{{ data_file.analysis.completed_at.strftime('%Y-%m-%d %H:%M') if data_file.analysis.completed_at else 'N/A' }}",
+    "file_id": {{ data_file.id }},
+    "signal_api": "{{ url_for('doctor.api_signals_full', file_id=data_file.id) if doctor_view else url_for('patient.api_signals_clean', file_id=data_file.id) }}",
+    "doctor_view": {{ 'true' if doctor_view else 'false' }}
+}</script>
+
+<!-- Header -->
+<div class="viz-header">
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+        <div>
+            <h2><i class="bi bi-lungs me-2"></i>SpO₂ Trend Analysis</h2>
+            <p class="mb-2">{{ data_file.original_filename }}</p>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                <span class="metric-pill"><i class="bi bi-calendar3"></i>
+                    {{ data_file.analysis.completed_at.strftime('%Y-%m-%d') if data_file.analysis.completed_at else 'N/A' }}
+                </span>
+                <span class="metric-pill"><i class="bi bi-droplet-half"></i> Oxygen Saturation</span>
+                <span class="metric-pill"><i class="bi bi-activity"></i>
+                    ODI: {{ "%.1f"|format(data_file.analysis.oxygen_desaturation or 0) }}%
+                </span>
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('doctor.doc_viz_hrv' if doctor_view else 'patient.viz_hrv', file_id=data_file.id) }}" class="btn btn-sm"
+               style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:10px;">
+                <i class="bi bi-heart-pulse me-1"></i>HRV View
+            </a>
+            <a href="{{ url_for('doctor.doc_viz_report' if doctor_view else 'patient.viz_report', file_id=data_file.id) }}" class="btn btn-sm"
+               style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:10px;">
+                <i class="bi bi-file-text me-1"></i>Full Report
+            </a>
+            {% if doctor_view %}
+            <a href="{{ url_for('doctor.compare_reports') }}" class="btn btn-sm"
+               style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:10px;">
+                <i class="bi bi-bar-chart-steps me-1"></i>Compare
+            </a>
+            <a href="{{ url_for('doctor.patient_detail', patient_id=data_file.patient_id) }}" class="btn btn-sm"
+               style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:10px;">
+                <i class="bi bi-arrow-left me-1"></i>Back to Patient
+            </a>
+            {% else %}
+            <a href="{{ url_for('patient.data_file_detail', file_id=data_file.id) }}" class="btn btn-sm"
+               style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:10px;">
+                <i class="bi bi-arrow-left me-1"></i>Back
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Key metrics row -->
+<div class="row g-3 mb-3" id="spo2Tiles">
+    <!-- filled by JS -->
+</div>
+
+<!-- Charts row 1 -->
+<div class="row g-3 mb-3">
+    <div class="col-lg-8">
+        <div class="chart-card">
+            <div class="domain-badge"><i class="bi bi-graph-up"></i> SpO₂ Distribution</div>
+            <h5>Oxygen Saturation Percentile Profile</h5>
+            <p class="subtitle">SpO₂ at key percentiles (P5, P10, P25, median, P75, P90, P95), showing the full distribution of oxygen saturation during the recording.</p>
+            <canvas id="chartPercentiles" height="220"></canvas>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="chart-card h-100 d-flex flex-column">
+            <div class="domain-badge"><i class="bi bi-speedometer2"></i> ODI Gauge</div>
+            <h5>Oxygen Desaturation Index</h5>
+            <p class="subtitle">Percentage of recording time with SpO₂ below normal thresholds.</p>
+            <div class="flex-grow-1 d-flex align-items-center justify-content-center">
+                <canvas id="chartODI" width="200" height="200"></canvas>
+            </div>
+            <div class="interpretation-box">
+                <h6><i class="bi bi-info-circle me-1"></i>ODI Interpretation</h6>
+                <p id="odiInterpretation">Loading…</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts row 2 -->
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="chart-card">
+            <div class="domain-badge"><i class="bi bi-bar-chart-fill"></i> Time Below Threshold</div>
+            <h5>Desaturation Time by Threshold</h5>
+            <p class="subtitle">% of recording time where SpO₂ fell below each clinical threshold (85%, 88%, 90%, 93%, 95%).</p>
+            <canvas id="chartDesatTime" height="260"></canvas>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="chart-card">
+            <div class="domain-badge"><i class="bi bi-layers"></i> SpO₂ Range Analysis</div>
+            <h5>Normal vs Abnormal Saturation Zones</h5>
+            <p class="subtitle">Proportion of recording time spent in each saturation zone — healthy, mild, moderate and severe hypoxemia.</p>
+            <canvas id="chartZones" height="260"></canvas>
+            <div class="interpretation-box mt-3">
+                <h6><i class="bi bi-info-circle me-1"></i>Clinical Context</h6>
+                <p id="zonesInterpretation">Loading…</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ SpO2 Waveform Section ══ -->
+<div id="spo2WaveformSection" class="mt-3">
+    <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span><i class="bi bi-activity me-2"></i>SpO₂ Signal Waveform</span>
+            {% if doctor_view %}
+            <span class="badge bg-warning text-dark" style="font-size:0.72rem;">
+                <i class="bi bi-eye me-1"></i>Doctor View — Raw &amp; Cleaned Signal
+            </span>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <p id="waveformStatus" class="text-muted text-center py-3">
+                <i class="bi bi-hourglass-split me-1"></i>Loading signal…
+            </p>
+            <!-- Doctor-only cleaning audit badge -->
+            <div id="spo2CleaningAudit" style="display:none;"></div>
+            <div style="position:relative; height:280px;">
+                <canvas id="chartSpo2Waveform"></canvas>
+            </div>
+            <div class="mt-2" style="font-size:0.78rem; color:var(--text-muted);">
+                {% if doctor_view %}
+                <i class="bi bi-info-circle me-1"></i>
+                <strong>Red</strong> = raw unprocessed signal &nbsp;·&nbsp;
+                <strong>Teal</strong> = after range clip [70–100%] + Savitzky-Golay smoothing &nbsp;·&nbsp;
+                Downsampled to 1 Hz for display.
+                {% else %}
+                <i class="bi bi-info-circle me-1"></i>
+                Cleaned SpO₂ signal (range-clipped + smoothed), sampled at 1 Hz.
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/viz_spo2.js') }}"></script>
+{% endblock %}

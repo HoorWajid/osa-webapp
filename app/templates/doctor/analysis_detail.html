@@ -1,0 +1,464 @@
+{% extends "base.html" %}
+{% block title %}Analysis — {{ patient.display_name }}{% endblock %}
+{% block page_title %}Analysis Details{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Tile colour helpers — keeps Jinja2 out of style= attributes */
+.tile-spo2-danger  { background:#fff5f5; border:1px solid #fecaca; }
+.tile-spo2-safe    { background:#f0fff4; border:1px solid #bbf7d0; }
+.val-spo2-danger   { font-size:1rem; font-weight:700; color:#dc3545; }
+.val-spo2-safe     { font-size:1rem; font-weight:700; color:#059669; }
+.metric-unit       { font-size:0.65rem; color:#888; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
+    <a href="{{ url_for('doctor.patient_detail', patient_id=patient.id) }}"
+       class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Back to Patient
+    </a>
+    {% if analysis.status != 'reviewed' %}
+    <a href="{{ url_for('doctor.review_analysis', analysis_id=analysis.id) }}"
+       class="btn btn-primary btn-sm">
+        <i class="bi bi-pencil me-1"></i>Add Review
+    </a>
+    {% else %}
+    <a href="{{ url_for('doctor.review_analysis', analysis_id=analysis.id) }}"
+       class="btn btn-outline-success btn-sm">
+        <i class="bi bi-pencil me-1"></i>Update Review
+    </a>
+    {% endif %}
+    {% if analysis.data_file.file_type == 'edf' %}
+    <a href="{{ url_for('doctor.doc_viz_hrv', file_id=analysis.data_file.id) }}"
+       class="btn btn-sm btn-viz-teal">
+        <i class="bi bi-heart-pulse me-1"></i>HRV Viz
+    </a>
+    <a href="{{ url_for('doctor.doc_viz_spo2', file_id=analysis.data_file.id) }}"
+       class="btn btn-sm btn-viz-blue">
+        <i class="bi bi-lungs me-1"></i>SpO&#x2082; Viz
+    </a>
+    {% endif %}
+    <a href="{{ url_for('doctor.doc_viz_report', file_id=analysis.data_file.id) }}"
+       class="btn btn-sm btn-viz-purple">
+        <i class="bi bi-file-medical me-1"></i>Full Report
+    </a>
+</div>
+
+<div class="row g-4">
+
+    <!-- LEFT COLUMN -->
+    <div class="col-lg-4">
+
+        <!-- Patient card -->
+        <div class="card shadow-sm mb-3 card-teal-top">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <div class="avatar-circle-lg">
+                        {{ patient.display_name[0].upper() }}
+                    </div>
+                    <div>
+                        <h6 class="mb-0">{{ patient.display_name }}</h6>
+                        <small class="text-muted">@{{ patient.username }}</small>
+                    </div>
+                </div>
+                <div class="text-muted" style="font-size:0.85rem;">
+                    <i class="bi bi-file-earmark me-1"></i>{{ analysis.data_file.original_filename }}<br>
+                    <i class="bi bi-calendar me-1"></i>
+                    {{ analysis.completed_at.strftime('%Y-%m-%d %H:%M') if analysis.completed_at else '—' }}
+                </div>
+            </div>
+        </div>
+
+        <!-- OSA Result -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-body text-center py-4">
+                {% if analysis.osa_detected %}
+                <div class="osa-icon-circle osa-icon-warn">⚠️</div>
+                <h4 style="color:#b45309;">OSA Detected</h4>
+                {% else %}
+                <div class="osa-icon-circle osa-icon-ok">✓</div>
+                <h4 style="color:#059669;">No OSA Detected</h4>
+                {% endif %}
+
+                {% set sev = analysis.severity %}
+                <span class="badge fs-6 mb-3
+                    {% if sev == 'severe' %}bg-danger
+                    {% elif sev == 'moderate' %}bg-warning text-dark
+                    {% elif sev == 'mild' %}bg-info text-dark
+                    {% else %}bg-success{% endif %}">
+                    {{ sev.title() if sev else '—' }}
+                </span>
+
+                <div class="row g-2 text-center">
+                    <div class="col-6">
+                        <div class="metric-tile-teal">
+                            <div class="metric-val-lg-teal">{{ "%.1f"|format(analysis.ahi_score) }}</div>
+                            <small class="text-muted">AHI (events/hr)</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="metric-tile-teal">
+                            <div class="metric-val-lg-teal">{{ "%.0f"|format(analysis.confidence_score * 100) }}%</div>
+                            <small class="text-muted">Confidence</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="metric-tile-orange">
+                            <div class="metric-val-lg-orange">{{ analysis.apnea_events or 0 }}</div>
+                            <small class="text-muted">Apnea Events</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="metric-tile-orange">
+                            <div class="metric-val-lg-orange">{{ analysis.hypopnea_events or 0 }}</div>
+                            <small class="text-muted">Hypopnea Events</small>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="metric-tile-blue">
+                            <div class="metric-val-lg-blue">{{ "%.1f"|format(analysis.oxygen_desaturation or 0) }}%</div>
+                            <small class="text-muted">O&#x2082; Desaturation</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Review status -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="bi bi-patch-check" style="color:var(--teal);"></i>
+                    <strong style="font-size:0.9rem;">Review Status</strong>
+                </div>
+                {% if analysis.status == 'reviewed' %}
+                <span class="badge bg-success"><i class="bi bi-check me-1"></i>Reviewed</span>
+                {% if analysis.reviewed_at %}
+                <small class="text-muted d-block mt-1">
+                    {{ analysis.reviewed_at.strftime('%Y-%m-%d') }}
+                </small>
+                {% endif %}
+                {% else %}
+                <span class="badge bg-warning text-dark">
+                    <i class="bi bi-hourglass me-1"></i>Pending Review
+                </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Patient history -->
+        {% if all_analyses|length > 1 %}
+        <div class="card shadow-sm">
+            <div class="card-header" style="font-size:0.85rem;font-weight:600;">
+                <i class="bi bi-clock-history me-1"></i>Analysis History
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height:260px;overflow-y:auto;">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead style="position:sticky;top:0;background:#f8fafb;">
+                            <tr>
+                                <th>Date</th>
+                                <th>AHI</th>
+                                <th>Severity</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in all_analyses %}
+                            <tr {% if a.id == analysis.id %}class="table-active"{% endif %}>
+                                <td style="font-size:0.82rem;">
+                                    {{ a.completed_at.strftime('%Y-%m-%d') }}
+                                </td>
+                                <td><strong>{{ "%.1f"|format(a.ahi_score) }}</strong></td>
+                                <td>
+                                    {% set s = a.severity %}
+                                    <span class="badge
+                                        {% if s=='severe' %}bg-danger
+                                        {% elif s=='moderate' %}bg-warning text-dark
+                                        {% elif s=='mild' %}bg-info text-dark
+                                        {% else %}bg-success{% endif %}"
+                                        style="font-size:0.7rem;">{{ s.title() if s else '—' }}</span>
+                                </td>
+                                <td>
+                                    {% if a.id != analysis.id %}
+                                    <a href="{{ url_for('doctor.view_analysis', analysis_id=a.id) }}"
+                                       class="btn btn-outline-secondary"
+                                       style="font-size:0.72rem;padding:1px 6px;">View</a>
+                                    {% else %}
+                                    <span class="text-muted" style="font-size:0.72rem;">Current</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="col-lg-8">
+
+        {% set feats = features %}
+
+        <!-- HRV Metrics -->
+        {% if analysis.data_file.file_type == 'edf' %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span>
+                    <i class="bi bi-heart-pulse me-2" style="color:var(--teal);"></i>
+                    <strong>HRV Metrics</strong>
+                </span>
+                <a href="{{ url_for('doctor.doc_viz_hrv', file_id=analysis.data_file.id) }}"
+                   class="btn btn-sm btn-viz-teal">
+                    <i class="bi bi-graph-up me-1"></i>Open HRV Visualizer
+                </a>
+            </div>
+            <div class="card-body">
+
+                <!-- Time Domain -->
+                <p class="metric-section-label" style="color:var(--teal);">Time Domain</p>
+                <div class="row g-2 mb-3">
+                    {% for label, key, unit, desc in [
+                        ('SDNN',    'sdnn',     'ms', 'Overall HRV — total autonomic activity'),
+                        ('RMSSD',   'rmssd',    'ms', 'Short-term HRV — parasympathetic tone'),
+                        ('pNN50',   'pnn50',    '%',  'Proportion of successive RR >50 ms'),
+                        ('pNN20',   'pnn20',    '%',  'Proportion of successive RR >20 ms'),
+                        ('Mean NN', 'mean_nni', 'ms', 'Mean RR interval'),
+                        ('CV NN',   'cvnni',    '%',  'Coefficient of variation of NN intervals'),
+                    ] %}
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 rounded h-100 hrv-tile-teal">
+                            <div class="hrv-val-teal">
+                                {% if feats.get(key) is not none and feats.get(key) != '' %}
+                                    {{ "%.2f"|format(feats.get(key)|float) }}
+                                    <small class="metric-unit">{{ unit }}</small>
+                                {% else %}<span class="text-muted">N/A</span>{% endif %}
+                            </div>
+                            <div class="hrv-label">{{ label }}</div>
+                            <div class="hrv-desc">{{ desc }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Frequency Domain -->
+                <p class="metric-section-label" style="color:var(--purple);">Frequency Domain</p>
+                <div class="row g-2 mb-3">
+                    {% for label, key, unit, desc in [
+                        ('LF Power',    'lf',          'ms²', 'Low frequency (0.04–0.15 Hz)'),
+                        ('HF Power',    'hf',          'ms²', 'High frequency (0.15–0.40 Hz)'),
+                        ('LF/HF',       'lf_hf_ratio', '',    'Sympathovagal balance'),
+                        ('LFnu',        'lfnu',        'nu',  'LF in normalised units'),
+                        ('HFnu',        'hfnu',        'nu',  'HF in normalised units'),
+                        ('Total Power', 'total_power', 'ms²', 'Total spectral power'),
+                    ] %}
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 rounded h-100 hrv-tile-purple">
+                            <div class="hrv-val-purple">
+                                {% if feats.get(key) is not none and feats.get(key) != '' %}
+                                    {{ "%.3f"|format(feats.get(key)|float) }}
+                                    {% if unit %}<small class="metric-unit">{{ unit }}</small>{% endif %}
+                                {% else %}<span class="text-muted">N/A</span>{% endif %}
+                            </div>
+                            <div class="hrv-label">{{ label }}</div>
+                            <div class="hrv-desc">{{ desc }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Nonlinear -->
+                <p class="metric-section-label" style="color:#0a7fa6;">Nonlinear</p>
+                <div class="row g-2">
+                    {% for label, key, unit, desc in [
+                        ('SD1',     'sd1',            'ms', 'Short-term Poincaré variability'),
+                        ('SD2',     'sd2',            'ms', 'Long-term Poincaré variability'),
+                        ('SD2/SD1', 'ratio_sd2_sd1',  '',   'Long/short-term ratio'),
+                        ('CSI',     'csi',            '',   'Cardiac Sympathetic Index'),
+                        ('CVI',     'cvi',            '',   'Cardiac Vagal Index'),
+                        ('SampEn',  'sample_entropy', '',   'Signal complexity / regularity'),
+                    ] %}
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 rounded h-100 hrv-tile-blue">
+                            <div class="hrv-val-blue">
+                                {% if feats.get(key) is not none and feats.get(key) != '' %}
+                                    {{ "%.3f"|format(feats.get(key)|float) }}
+                                    {% if unit %}<small class="metric-unit">{{ unit }}</small>{% endif %}
+                                {% else %}<span class="text-muted">N/A</span>{% endif %}
+                            </div>
+                            <div class="hrv-label">{{ label }}</div>
+                            <div class="hrv-desc">{{ desc }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- SpO2 Metrics -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span>
+                    <i class="bi bi-lungs me-2" style="color:#0a7fa6;"></i>
+                    <strong>SpO&#x2082; Metrics</strong>
+                </span>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('doctor.doc_viz_spo2', file_id=analysis.data_file.id) }}"
+                       class="btn btn-sm btn-viz-blue">
+                        <i class="bi bi-graph-up me-1"></i>SpO&#x2082; Visualizer
+                    </a>
+                    <a href="{{ url_for('doctor.api_signals_full', file_id=analysis.data_file.id) }}"
+                       target="_blank" class="btn btn-sm btn-outline-secondary"
+                       title="Download raw+clean signal JSON">
+                        <i class="bi bi-download me-1"></i>Signals JSON
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-2 mb-3">
+                    {% for label, key, unit, desc in [
+                        ('Mean SpO&#x2082;',   'spo2_mean',   '%', 'Average oxygen saturation'),
+                        ('Median SpO&#x2082;', 'spo2_median', '%', 'Median oxygen saturation'),
+                        ('Min SpO&#x2082;',    'spo2_min',    '%', 'Lowest recorded value'),
+                        ('Std Dev',            'spo2_std',    '',  'Variability of SpO&#x2082;'),
+                        ('P5',                 'spo2_p5',     '%', '5th percentile'),
+                        ('P10',                'spo2_p10',    '%', '10th percentile'),
+                    ] %}
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 rounded hrv-tile-blue">
+                            <div class="hrv-val-blue" style="font-size:1.15rem;">
+                                {% if feats.get(key) is not none and feats.get(key) != '' %}
+                                    {{ "%.2f"|format(feats.get(key)|float) }}
+                                    {% if unit %}<small class="metric-unit">{{ unit }}</small>{% endif %}
+                                {% else %}<span class="text-muted">N/A</span>{% endif %}
+                            </div>
+                            <div class="hrv-label">{{ label }}</div>
+                            <div class="hrv-desc">{{ desc }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Hypoxaemic Burden -->
+                <p class="metric-section-label" style="color:#dc3545;">Hypoxaemic Burden</p>
+                <div class="row g-2">
+                    {% for label, key in [
+                        ('T < 95%',    'time_below_95'),
+                        ('T < 93%',    'time_below_93'),
+                        ('T < 90%',    'time_below_90'),
+                        ('T < 88%',    'time_below_88'),
+                        ('T < 85%',    'time_below_85'),
+                        ('Valid Data', 'valid_data_pct'),
+                    ] %}
+                    <div class="col-4 col-md-2">
+                        <div class="p-2 rounded text-center
+                             {% if 'below' in key %}tile-spo2-danger{% else %}tile-spo2-safe{% endif %}">
+                            <div class="{% if 'below' in key %}val-spo2-danger{% else %}val-spo2-safe{% endif %}">
+                                {% if feats.get(key) is not none and feats.get(key) != '' %}
+                                    {{ "%.1f"|format(feats.get(key)|float) }}%
+                                {% else %}N/A{% endif %}
+                            </div>
+                            <small class="text-muted" style="font-size:0.72rem;">{{ label }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Doctor Notes -->
+        {% if analysis.doctor_notes or analysis.recommendations %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <i class="bi bi-journal-text me-2"></i><strong>Doctor's Review</strong>
+            </div>
+            <div class="card-body">
+                {% if analysis.doctor_notes %}
+                <div class="mb-3">
+                    <small class="text-muted text-uppercase" style="letter-spacing:1px;font-size:0.75rem;">
+                        Clinical Notes
+                    </small>
+                    <p class="mt-1">{{ analysis.doctor_notes }}</p>
+                </div>
+                {% endif %}
+                {% if analysis.recommendations %}
+                <div>
+                    <small class="text-muted text-uppercase" style="letter-spacing:1px;font-size:0.75rem;">
+                        Recommendations
+                    </small>
+                    <p class="mt-1 mb-0">{{ analysis.recommendations }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Signal Audit Panel -->
+        {% if analysis.data_file.file_type == 'edf' %}
+        <div class="card shadow-sm">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span>
+                    <i class="bi bi-activity me-2" style="color:var(--teal);"></i>
+                    <strong>Signal Audit</strong>
+                    <span class="badge bg-warning text-dark ms-2" style="font-size:0.7rem;">Doctor View</span>
+                </span>
+                <a href="{{ url_for('doctor.api_signals_full', file_id=analysis.data_file.id) }}"
+                   target="_blank" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-download me-1"></i>Download Raw JSON
+                </a>
+            </div>
+            <div class="card-body">
+                <p class="text-muted" style="font-size:0.85rem;">
+                    The signals API exposes both raw (pre-cleaning) and cleaned RR intervals and SpO&#x2082; waveform.
+                    Use the HRV / SpO&#x2082; visualizers above to see the overlaid raw vs clean charts, or download
+                    the full JSON for external analysis.
+                </p>
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <div class="p-3 rounded hrv-tile-teal">
+                            <strong style="font-size:0.85rem;color:var(--teal);">
+                                <i class="bi bi-heart-pulse me-1"></i>RR Interval Signal
+                            </strong>
+                            <ul class="mt-2 mb-0 small text-muted">
+                                <li><strong>Raw:</strong> all beats including ectopic</li>
+                                <li><strong>Clean:</strong> Malik ectopic removal + linear interp</li>
+                                <li>Valid range: 300–2000 ms</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 rounded hrv-tile-blue">
+                            <strong style="font-size:0.85rem;color:#0a7fa6;">
+                                <i class="bi bi-lungs me-1"></i>SpO&#x2082; Signal
+                            </strong>
+                            <ul class="mt-2 mb-0 small text-muted">
+                                <li><strong>Raw:</strong> original sensor values</li>
+                                <li><strong>Clean:</strong> NaN-sub [70–100%] + interp + SG smooth</li>
+                                <li>Both downsampled to 1 Hz</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3 d-flex gap-2">
+                    <a href="{{ url_for('doctor.doc_viz_hrv', file_id=analysis.data_file.id) }}"
+                       class="btn btn-sm btn-viz-teal">
+                        <i class="bi bi-heart-pulse me-1"></i>View RR Poincaré (raw vs clean)
+                    </a>
+                    <a href="{{ url_for('doctor.doc_viz_spo2', file_id=analysis.data_file.id) }}"
+                       class="btn btn-sm btn-viz-blue">
+                        <i class="bi bi-lungs me-1"></i>View SpO&#x2082; Waveform (raw vs clean)
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

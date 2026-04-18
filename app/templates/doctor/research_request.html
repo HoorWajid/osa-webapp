@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}Research Data Request{% endblock %}
+{% block page_title %}Research &amp; Data Access{% endblock %}
+
+{% block content %}
+
+{% set approved = my_requests | selectattr('status','equalto','approved') | list %}
+{% set pending  = my_requests | selectattr('status','equalto','pending')  | list %}
+
+{% if approved %}
+<div class="alert alert-success d-flex align-items-center gap-3 mb-4" style="border-radius:14px;">
+    <i class="bi bi-check-circle-fill fs-4 flex-shrink-0"></i>
+    <div>
+        <strong>You have {{ approved|length }} approved research request{% if approved|length > 1 %}s{% endif %}.</strong>
+        Data download is available below.
+    </div>
+</div>
+{% elif pending %}
+<div class="alert alert-warning d-flex align-items-center gap-3 mb-4" style="border-radius:14px;">
+    <i class="bi bi-hourglass-split fs-4 flex-shrink-0"></i>
+    <div>
+        <strong>{{ pending|length }} request{% if pending|length > 1 %}s{% endif %} pending admin review.</strong>
+        You will be able to download data once approved.
+    </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+
+    <!-- ══ LEFT: Submit new request ════════════════════════════════════════ -->
+    <div class="col-lg-5">
+        <div class="card shadow-sm" style="border-top:4px solid var(--teal);">
+            <div class="card-header">
+                <i class="bi bi-send me-2" style="color:var(--teal);"></i>
+                <strong>Submit New Research Request</strong>
+            </div>
+            <div class="card-body p-4">
+                <p class="text-muted mb-4" style="font-size:0.88rem;">
+                    All data access requests must be approved by an administrator before download
+                    is enabled. Requests are logged for audit purposes.
+                </p>
+
+                <form method="POST" action="{{ url_for('doctor.research_request') }}" id="researchForm" novalidate>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold" for="researchTitle">
+                            <i class="bi bi-tag me-1" style="color:var(--teal);"></i>Research Title
+                        </label>
+                        <input type="text" name="title" id="researchTitle" class="form-control"
+                               placeholder="e.g. HRV patterns in moderate OSA patients"
+                               required maxlength="200">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold" for="researchPurpose">
+                            <i class="bi bi-file-text me-1" style="color:var(--teal);"></i>Purpose &amp; Justification
+                        </label>
+                        <textarea name="purpose" id="researchPurpose" class="form-control" rows="4"
+                                  placeholder="Describe the research purpose, intended use of data, and why you need access..."
+                                  required maxlength="2000"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold" for="scopeSelect">
+                            <i class="bi bi-database me-1" style="color:var(--teal);"></i>Data Scope
+                        </label>
+                        {#
+                          SECURITY FIX: onchange="updateScopeUI(this.value)" removed.
+                          Inline event handlers violate CSP. The JS file registers
+                          the change listener on DOMContentLoaded instead.
+                        #}
+                        <select name="scope" id="scopeSelect" class="form-select">
+                            <option value="assigned">My assigned patients only</option>
+                            <option value="all">All patients in system (aggregated, anonymised)</option>
+                            <option value="specific">Specific patients (select below)</option>
+                        </select>
+                        <small class="text-muted">
+                            'All patients' requires stronger justification and is subject to stricter review.
+                        </small>
+                    </div>
+
+                    <!-- Specific patients panel (toggled by JS) -->
+                    <div id="specificPatientsPanel" class="mb-3" style="display:none;">
+                        <label class="form-label fw-bold" style="font-size:0.88rem;">Select Patients</label>
+                        {% if assigned_patients %}
+                        <div class="border rounded p-3" style="max-height:180px;overflow-y:auto;background:#f8fafb;">
+                            {% for p in assigned_patients %}
+                            <div class="form-check mb-1">
+                                <input class="form-check-input" type="checkbox"
+                                       name="patient_ids" value="{{ p.id }}"
+                                       id="p_{{ p.id }}">
+                                <label class="form-check-label" for="p_{{ p.id }}"
+                                       style="font-size:0.88rem;">
+                                    {# Display name and username are plain text — escaped for defence in depth #}
+                                    {{ p.display_name | e }}
+                                    <small class="text-muted">@{{ p.username | e }}</small>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted small">No assigned patients available.</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-file-earmark me-1" style="color:var(--teal);"></i>Export Format
+                        </label>
+                        <div class="d-flex gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="export_format"
+                                       value="csv" id="fmtCsv" checked>
+                                <label class="form-check-label" for="fmtCsv">
+                                    CSV <small class="text-muted">(recommended for Excel / SPSS)</small>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="export_format"
+                                       value="json" id="fmtJson">
+                                <label class="form-check-label" for="fmtJson">
+                                    JSON <small class="text-muted">(for Python / R)</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox"
+                                   name="include_signals" id="inclSig">
+                            <label class="form-check-label" for="inclSig">
+                                <strong>Include raw &amp; cleaned signal arrays</strong>
+                                <small class="text-muted d-block">
+                                    Attaches RR interval series and SpO₂ waveform per record.
+                                    File size will be significantly larger.
+                                </small>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="alert" style="background:#f4fbfb;border:1px solid var(--teal-light);
+                                              border-radius:10px;font-size:0.82rem;">
+                        <i class="bi bi-shield-check me-1" style="color:var(--teal);"></i>
+                        <strong>Privacy note:</strong> All exports use patient IDs only — no names
+                        or emails are included. Downloads are logged to the audit trail.
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-send me-2"></i>Submit Request for Admin Review
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ RIGHT: My requests history ═════════════════════════════════════ -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-clock-history me-2"></i><strong>My Requests</strong></span>
+                {% if my_requests %}
+                <span class="badge bg-secondary">{{ my_requests|length }}</span>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% if my_requests %}
+                {% for rr in my_requests %}
+                <div class="p-3 {% if not loop.last %}border-bottom{% endif %}">
+                    <div class="d-flex align-items-start justify-content-between gap-2 flex-wrap">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                <strong style="font-size:0.95rem;">{{ rr.title | e }}</strong>
+                                {% if rr.status == 'approved' %}
+                                <span class="badge bg-success"><i class="bi bi-check me-1"></i>Approved</span>
+                                {% elif rr.status == 'rejected' %}
+                                <span class="badge bg-danger"><i class="bi bi-x me-1"></i>Rejected</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark"><i class="bi bi-hourglass me-1"></i>Pending</span>
+                                {% endif %}
+                                <span class="badge bg-light text-dark border" style="font-size:0.72rem;">
+                                    {% if rr.scope == 'all' %}<i class="bi bi-globe me-1"></i>All Patients
+                                    {% elif rr.scope == 'specific' %}<i class="bi bi-person-check me-1"></i>Specific
+                                    {% else %}<i class="bi bi-people me-1"></i>My Patients{% endif %}
+                                </span>
+                                {% if rr.include_signals %}
+                                <span class="badge bg-light text-dark border" style="font-size:0.72rem;">
+                                    <i class="bi bi-activity me-1"></i>Signals
+                                </span>
+                                {% endif %}
+                                <span class="badge bg-light text-dark border" style="font-size:0.72rem;">
+                                    {{ rr.export_format | upper | e }}
+                                </span>
+                            </div>
+
+                            <p class="text-muted mb-1" style="font-size:0.83rem;">
+                                {{ (rr.purpose[:150]) | e }}{% if rr.purpose|length > 150 %}&hellip;{% endif %}
+                            </p>
+
+                            <small class="text-muted">
+                                Submitted {{ rr.submitted_at.strftime('%Y-%m-%d %H:%M') }}
+                                {% if rr.reviewed_at %}&nbsp;&middot;&nbsp; Reviewed {{ rr.reviewed_at.strftime('%Y-%m-%d') }}{% endif %}
+                                {% if rr.download_count %}&nbsp;&middot;&nbsp; Downloaded {{ rr.download_count }}&times;{% endif %}
+                            </small>
+
+                            {% if rr.status == 'rejected' and rr.rejection_reason %}
+                            <div class="alert alert-danger mt-2 p-2 mb-0" style="font-size:0.82rem;border-radius:8px;">
+                                <i class="bi bi-x-circle me-1"></i>
+                                <strong>Rejection reason:</strong> {{ rr.rejection_reason | e }}
+                            </div>
+                            {% endif %}
+
+                            {% if rr.status == 'approved' and rr.admin_notes %}
+                            <div class="alert alert-success mt-2 p-2 mb-0" style="font-size:0.82rem;border-radius:8px;">
+                                <i class="bi bi-info-circle me-1"></i>
+                                <strong>Admin note:</strong> {{ rr.admin_notes | e }}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        {% if rr.status == 'approved' %}
+                        <div class="flex-shrink-0">
+                            <a href="{{ url_for('doctor.research_download', request_id=rr.id) }}"
+                               class="btn btn-success btn-sm">
+                                <i class="bi bi-download me-1"></i>Download {{ rr.export_format | upper | e }}
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox" style="font-size:2.5rem;"></i>
+                    <p class="mt-3">No requests submitted yet.<br>
+                    <small>Fill in the form on the left to request data access.</small></p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/research_request.js') }}"></script>
+{% endblock %}

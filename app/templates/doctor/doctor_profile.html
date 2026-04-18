@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+
+{% block title %}Doctor Profile{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <div class="page-header">
+        <div class="icon-wrap">
+            <i class="bi bi-person-badge"></i>
+        </div>
+        <div>
+            <h2>Professional Profile</h2>
+            <p class="text-muted mb-0">Manage your credentials and professional information</p>
+        </div>
+    </div>
+
+    {% if not current_user.is_doctor_verified %}
+    <div class="alert alert-warning mb-4">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        <strong>Verification Required:</strong>
+        Please complete your
+        <a href="{{ url_for('doctor.verification') }}" class="alert-link">verification process</a>
+        to access all features.
+    </div>
+    {% endif %}
+
+    <form method="POST" enctype="multipart/form-data" novalidate>
+        {{ form.hidden_tag() }}
+
+        <!-- ══════════════ LICENSE & CREDENTIALS ══════════════ -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-card-checklist me-2"></i>License &amp; Credentials
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        {{ form.medical_license_number.label(class="form-label") }}
+                        {{ form.medical_license_number(class="form-control") }}
+                        {% if form.medical_license_number.errors %}
+                            <div class="text-danger"><small>{{ form.medical_license_number.errors[0] }}</small></div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        {{ form.license_state.label(class="form-label") }}
+                        {{ form.license_state(class="form-control") }}
+                        {% if form.license_state.errors %}
+                            <div class="text-danger"><small>{{ form.license_state.errors[0] }}</small></div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        {{ form.license_expiry.label(class="form-label") }}
+                        {{ form.license_expiry(class="form-control", type="date") }}
+                        {% if form.license_expiry.errors %}
+                            <div class="text-danger"><small>{{ form.license_expiry.errors[0] }}</small></div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════ EDUCATION ══════════════ -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-mortarboard me-2"></i>Education
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        {{ form.medical_school.label(class="form-label") }}
+                        {{ form.medical_school(class="form-control",
+                           placeholder="e.g., Harvard Medical School") }}
+                    </div>
+                    <div class="col-md-3">
+                        {{ form.graduation_year.label(class="form-label") }}
+                        {{ form.graduation_year(class="form-control", placeholder="e.g., 2010") }}
+                        {% if form.graduation_year.errors %}
+                            <div class="text-danger"><small>{{ form.graduation_year.errors[0] }}</small></div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-3">
+                        {{ form.degree.label(class="form-label") }}
+                        {{ form.degree(class="form-select") }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════ SPECIALIZATION ══════════════ -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-award me-2"></i>Specialization
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        {{ form.primary_specialization.label(class="form-label") }}
+                        {{ form.primary_specialization(class="form-select") }}
+                    </div>
+                    <div class="col-md-6">
+                        {{ form.secondary_specialization.label(class="form-label") }}
+                        {{ form.secondary_specialization(class="form-control",
+                           placeholder="e.g., Cardiology") }}
+                    </div>
+                </div>
+                <div class="mt-3">
+                    {{ form.board_certifications.label(class="form-label") }}
+                    {{ form.board_certifications(class="form-control", rows=2,
+                       placeholder="e.g., American Board of Sleep Medicine (separate with commas)") }}
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════ PROFESSIONAL EXPERIENCE ══════════════ -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-briefcase me-2"></i>Professional Experience
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        {{ form.years_of_experience.label(class="form-label") }}
+                        {{ form.years_of_experience(class="form-control") }}
+                        {% if form.years_of_experience.errors %}
+                            <div class="text-danger"><small>{{ form.years_of_experience.errors[0] }}</small></div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        {{ form.current_hospital.label(class="form-label") }}
+                        {{ form.current_hospital(class="form-control",
+                           placeholder="e.g., Mayo Clinic") }}
+                    </div>
+                    <div class="col-md-4">
+                        {{ form.current_position.label(class="form-label") }}
+                        {{ form.current_position(class="form-control",
+                           placeholder="e.g., Chief of Sleep Medicine") }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════ ADDITIONAL QUALIFICATIONS ══════════════ -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-journal-medical me-2"></i>Additional Qualifications
+            </div>
+            <div class="card-body p-4">
+                <div class="mb-3">
+                    {{ form.fellowships.label(class="form-label") }}
+                    {{ form.fellowships(class="form-control", rows=2,
+                       placeholder="e.g., Sleep Medicine Fellowship at Stanford") }}
+                </div>
+                <div class="mb-3">
+                    {{ form.research_interests.label(class="form-label") }}
+                    {{ form.research_interests(class="form-control", rows=3,
+                       placeholder="Describe your research interests and areas of focus") }}
+                </div>
+                <div>
+                    {{ form.publications.label(class="form-label") }}
+                    {{ form.publications(class="form-control", rows=3,
+                       placeholder="List your key publications") }}
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════ CONTACT INFORMATION ══════════════ -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-telephone me-2"></i>Contact Information
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        {{ form.professional_email.label(class="form-label") }}
+                        {{ form.professional_email(class="form-control",
+                           placeholder="doctor@hospital.com") }}
+                        {% if form.professional_email.errors %}
+                            <div class="text-danger"><small>{{ form.professional_email.errors[0] }}</small></div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        {{ form.office_phone.label(class="form-label") }}
+                        {{ form.office_phone(class="form-control",
+                           placeholder="+1 (555) 123-4567") }}
+                    </div>
+                </div>
+                <div class="mt-3">
+                    {{ form.office_address.label(class="form-label") }}
+                    {{ form.office_address(class="form-control", rows=3,
+                       placeholder="Full office address") }}
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════ ABOUT YOU ══════════════ -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-person-lines-fill me-2"></i>About You
+            </div>
+            <div class="card-body p-4">
+                <div class="mb-3">
+                    {{ form.bio.label(class="form-label") }}
+                    {{ form.bio(class="form-control", rows=4,
+                       placeholder="Write a brief professional biography (max 1000 characters)") }}
+                    <small class="text-muted">This will be visible to your patients</small>
+                    {% if form.bio.errors %}
+                        <div class="text-danger"><small>{{ form.bio.errors[0] }}</small></div>
+                    {% endif %}
+                </div>
+                <div>
+                    {{ form.languages_spoken.label(class="form-label") }}
+                    {{ form.languages_spoken(class="form-control",
+                       placeholder="e.g., English, Spanish, Mandarin") }}
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════ SUPPORTING DOCUMENTS ══════════════ -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-file-earmark-arrow-up me-2"></i>Supporting Documents
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        {{ form.cv_document.label(class="form-label") }}
+                        {{ form.cv_document(class="form-control") }}
+                        <small class="text-muted">PDF only</small>
+                        {% if profile and profile.cv_document_path %}
+                            <div class="mt-1">
+                                <small class="text-success">
+                                    <i class="bi bi-check-circle me-1"></i>
+                                    File already uploaded
+                                </small>
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        {{ form.license_document.label(class="form-label") }}
+                        {{ form.license_document(class="form-control") }}
+                        <small class="text-muted">PDF or image</small>
+                        {% if profile and profile.license_document_path %}
+                            <div class="mt-1">
+                                <small class="text-success">
+                                    <i class="bi bi-check-circle me-1"></i>
+                                    File already uploaded
+                                </small>
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        {{ form.certification_document.label(class="form-label") }}
+                        {{ form.certification_document(class="form-control") }}
+                        <small class="text-muted">PDF or image</small>
+                        {% if profile and profile.certification_document_path %}
+                            <div class="mt-1">
+                                <small class="text-success">
+                                    <i class="bi bi-check-circle me-1"></i>
+                                    File already uploaded
+                                </small>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════ PATIENT AVAILABILITY ══════════════ -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-person-check me-2"></i>Patient Availability
+            </div>
+            <div class="card-body p-4">
+                <div class="form-check form-switch">
+                    {{ form.is_accepting_patients(class="form-check-input", role="switch",
+                       style="width:3em; height:1.5em;") }}
+                    {{ form.is_accepting_patients.label(class="form-check-label ms-2 fw-bold") }}
+                </div>
+                <small class="text-muted mt-1 d-block ms-5">
+                    Toggle this if you are currently accepting new patient assignments
+                </small>
+            </div>
+        </div>
+
+
+        <!-- ══════════════ ACCOUNT SECURITY ══════════════ -->
+        <div class="card mb-4" style="border-top:3px solid var(--teal);">
+            <div class="card-header">
+                <i class="bi bi-shield-lock me-2"></i>Account Security
+            </div>
+            <div class="card-body p-4">
+                <p class="text-muted mb-3" style="font-size:0.9rem;">
+                    Keep your account secure by updating your password or email regularly.
+                </p>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="{{ url_for('auth.change_password') }}"
+                       class="btn btn-outline-secondary">
+                        <i class="bi bi-shield-lock me-1"></i>Change Password
+                    </a>
+                    <a href="{{ url_for('auth.change_email') }}"
+                       class="btn btn-outline-secondary">
+                        <i class="bi bi-envelope me-1"></i>Change Email
+                        <span class="badge bg-secondary ms-1" style="font-size:0.7rem;">
+                            {{ current_user.email }}
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════ ACTIONS ══════════════ -->
+        <div class="d-flex gap-2 justify-content-end mb-5">
+            <a href="{{ url_for('doctor.dashboard') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-x me-1"></i>Cancel
+            </a>
+            {{ form.submit(class="btn btn-primary btn-lg") }}
+        </div>
+
+    </form>
+</div>
+{% endblock %}

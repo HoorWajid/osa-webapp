@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+{% block title %}Doctor Verification Requests{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2><i class="bi bi-shield-check"></i> Doctor Verification Requests</h2>
+                <p class="text-muted mb-0">Review and approve doctor credentials</p>
+            </div>
+            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Pending Requests -->
+<div class="card shadow mb-4">
+    <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0">
+            <i class="bi bi-hourglass-split"></i> Pending Verifications
+            {% if pending_requests %}
+                <span class="badge bg-danger ms-2">{{ pending_requests|length }}</span>
+            {% endif %}
+        </h5>
+    </div>
+    <div class="card-body">
+        {% if pending_requests %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Doctor</th>
+                        <th>Email</th>
+                        <th>License Number</th>
+                        <th>Document Number</th>
+                        <th>Submitted</th>
+                        <th>Document</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in pending_requests %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="me-3" style="width:40px;height:40px;border-radius:50%;
+                                                         background:#0d6efd;color:#fff;display:flex;
+                                                         align-items:center;justify-content:center;
+                                                         font-weight:bold;font-size:1.2rem;">
+                                    {# SECURITY FIX: null guard + explicit escape #}
+                                    {{ (req.user.display_name or '?')[0] | upper | e }}
+                                </div>
+                                <div>
+                                    <div class="fw-bold">{{ req.user.display_name | e }}</div>
+                                    <small class="text-muted">@{{ req.user.username | e }}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{ req.user.email | e }}</td>
+                        <td>
+                            {% if req.user.doctor_profile and req.user.doctor_profile.medical_license_number %}
+                                <code>{{ req.user.doctor_profile.medical_license_number | e }}</code>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td><code>{{ req.document_number | e or '—' }}</code></td>
+                        <td><small>{{ req.submitted_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                        <td>
+                            {% if req.document_path %}
+                                <span class="badge bg-success">
+                                    <i class="bi bi-file-earmark-check"></i> Uploaded
+                                </span>
+                            {% else %}
+                                <span class="badge bg-secondary">No file</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-info btn-sm"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#detailsModal{{ req.id }}">
+                                    <i class="bi bi-eye"></i> Details
+                                </button>
+
+                                {#
+                                  SECURITY FIX: onsubmit="return confirm('Approve {{ req.user.username }}?')"
+                                  removed. Embedding username in a JS string is an XSS vector —
+                                  a username like '); alert(1);// would break the confirm() call.
+                                  Replaced with a data attribute + event listener (see script below).
+                                #}
+                                <form method="POST"
+                                      action="{{ url_for('admin.verify_doctor', request_id=req.id) }}"
+                                      class="d-inline verify-approve-form"
+                                      id="approveForm{{ req.id }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="action" value="approve">
+                                    <input type="hidden" name="review_notes" value="Approved">
+                                    <button type="button"
+                                            class="btn btn-success btn-sm approve-btn"
+                                            data-form-id="approveForm{{ req.id }}"
+                                            data-username="{{ req.user.username | e }}">
+                                        <i class="bi bi-check-lg"></i> Approve
+                                    </button>
+                                </form>
+
+                                <button type="button" class="btn btn-danger btn-sm"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#rejectModal{{ req.id }}">
+                                    <i class="bi bi-x-lg"></i> Reject
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Details Modal -->
+                    <div class="modal fade" id="detailsModal{{ req.id }}" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header bg-primary text-white">
+                                    <h5 class="modal-title">
+                                        <i class="bi bi-person-badge"></i>
+                                        Verification Details — {{ req.user.display_name | e }}
+                                    </h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <strong>Username:</strong>
+                                            <p>{{ req.user.username | e }}</p>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <strong>Email:</strong>
+                                            <p>{{ req.user.email | e }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <strong>Document Type:</strong>
+                                            <p>{{ req.document_type | e or 'Medical License' }}</p>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <strong>Document Number:</strong>
+                                            <p><code>{{ req.document_number | e or '—' }}</code></p>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <strong>Submitted At:</strong>
+                                        <p>{{ req.submitted_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                                    </div>
+                                    {% if req.user.profile %}
+                                    <hr>
+                                    <h6>User Profile Information</h6>
+                                    <div class="row">
+                                        {% if req.user.profile.first_name %}
+                                        <div class="col-md-6 mb-2">
+                                            <strong>Name:</strong>
+                                            <p>{{ req.user.profile.first_name | e }} {{ req.user.profile.last_name | e }}</p>
+                                        </div>
+                                        {% endif %}
+                                        {% if req.user.profile.phone %}
+                                        <div class="col-md-6 mb-2">
+                                            <strong>Phone:</strong>
+                                            <p>{{ req.user.profile.phone | e }}</p>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                    {# ── Submitted verification document ── #}
+                                    {% if req.document_path %}
+                                    <hr>
+                                    <h6 class="mb-3"><i class="bi bi-file-earmark-check me-2 text-success"></i>Submitted Document</h6>
+                                    <div class="d-flex align-items-center gap-3 p-3 rounded"
+                                         style="background:#f0fbfb;border:1px solid var(--teal-light);">
+                                        {% set fname = req.document_path.split('/')[-1].split('\\')[-1] %}
+                                        {% set is_pdf = fname.lower().endswith('.pdf') %}
+                                        <i class="bi bi-file-earmark-{{ 'pdf text-danger' if is_pdf else 'image text-info' }} fs-2"></i>
+                                        <div class="flex-grow-1">
+                                            <div class="fw-bold" style="font-size:0.9rem;">{{ fname | e }}</div>
+                                            <small class="text-muted">Verification document</small>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <a href="{{ url_for('admin.serve_document', doc_path=req.document_path) }}"
+                                               target="_blank"
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye me-1"></i>View
+                                            </a>
+                                            <a href="{{ url_for('admin.serve_document', doc_path=req.document_path) }}"
+                                               download
+                                               class="btn btn-sm btn-outline-secondary">
+                                                <i class="bi bi-download me-1"></i>Download
+                                            </a>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    {# ── Doctor profile documents (CV, license, certification) ── #}
+                                    {% if req.user.doctor_profile %}
+                                    {% set dp = req.user.doctor_profile %}
+                                    {% set doc_list = [] %}
+                                    {% if dp.cv_document_path %}{% set _ = doc_list.append(('CV / Resume', dp.cv_document_path, 'bi-file-earmark-person')) %}{% endif %}
+                                    {% if dp.license_document_path %}{% set _ = doc_list.append(('Medical License', dp.license_document_path, 'bi-patch-check')) %}{% endif %}
+                                    {% if dp.certification_document_path %}{% set _ = doc_list.append(('Board Certification', dp.certification_document_path, 'bi-award')) %}{% endif %}
+                                    {% if doc_list %}
+                                    <hr>
+                                    <h6 class="mb-3"><i class="bi bi-folder2-open me-2 text-primary"></i>Doctor Profile Documents</h6>
+                                    {% for label, path, icon in doc_list %}
+                                    {% set fname = path.split('/')[-1].split('\\')[-1] %}
+                                    <div class="d-flex align-items-center gap-3 p-2 rounded mb-2"
+                                         style="background:#f8f9fa;border:1px solid #dee2e6;">
+                                        <i class="bi {{ icon }} fs-4 text-primary flex-shrink-0"></i>
+                                        <div class="flex-grow-1">
+                                            <div class="fw-semibold" style="font-size:0.85rem;">{{ label }}</div>
+                                            <small class="text-muted">{{ fname | e }}</small>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <a href="{{ url_for('admin.serve_document', doc_path=path) }}"
+                                               target="_blank"
+                                               class="btn btn-sm btn-outline-primary btn-sm">
+                                                <i class="bi bi-eye me-1"></i>View
+                                            </a>
+                                            <a href="{{ url_for('admin.serve_document', doc_path=path) }}"
+                                               download
+                                               class="btn btn-sm btn-outline-secondary">
+                                                <i class="bi bi-download me-1"></i>Download
+                                            </a>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                    {% else %}
+                                    <div class="alert alert-warning mt-2 py-2" style="font-size:0.83rem;">
+                                        <i class="bi bi-exclamation-triangle me-1"></i>
+                                        No profile documents uploaded yet (CV, license, certification).
+                                    </div>
+                                    {% endif %}
+
+                                    {# ── License expiry info — days computed in route ── #}
+                                    {% if dp.license_expiry %}
+                                    <hr>
+                                    {% set expiry_info = expiry_map.get(req.user.id, {}) %}
+                                    {% set exp_days = expiry_info.get('days') %}
+                                    {% set exp_status = expiry_info.get('status', 'ok') %}
+                                    <div class="d-flex align-items-center gap-2 p-2 rounded
+                                        {% if exp_status == 'expired' %}bg-danger bg-opacity-10 border border-danger
+                                        {% elif exp_status in ('critical','warning') %}bg-warning bg-opacity-10 border border-warning
+                                        {% else %}bg-success bg-opacity-10 border border-success{% endif %}"
+                                         style="font-size:0.85rem;">
+                                        <i class="bi bi-calendar-check fs-5
+                                            {% if exp_status == 'expired' %}text-danger
+                                            {% elif exp_status in ('critical','warning') %}text-warning
+                                            {% else %}text-success{% endif %}"></i>
+                                        <div>
+                                            <strong>License Expiry:</strong> {{ dp.license_expiry.strftime('%B %d, %Y') }}
+                                            {% if exp_status == 'expired' %}
+                                            <span class="badge bg-danger ms-2">EXPIRED</span>
+                                            {% elif exp_status == 'critical' %}
+                                            <span class="badge bg-danger ms-2">Expires Tomorrow</span>
+                                            {% elif exp_status == 'warning' %}
+                                            <span class="badge bg-warning text-dark ms-2">Expires in {{ exp_days }} days</span>
+                                            {% else %}
+                                            <span class="badge bg-success ms-2">Valid — {{ exp_days }} days left</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% endif %}
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Reject Modal -->
+                    <div class="modal fade" id="rejectModal{{ req.id }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header bg-danger text-white">
+                                    <h5 class="modal-title">
+                                        <i class="bi bi-x-circle"></i> Reject Verification
+                                    </h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form method="POST" action="{{ url_for('admin.verify_doctor', request_id=req.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="action" value="reject">
+                                    <div class="modal-body">
+                                        <div class="alert alert-warning">
+                                            <strong>Warning:</strong> Rejecting verification for
+                                            <strong>{{ req.user.username | e }}</strong>.
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">
+                                                Rejection Reason <span class="text-danger">*</span>
+                                            </label>
+                                            <textarea name="rejection_reason"
+                                                      class="form-control" rows="4" required
+                                                      placeholder="e.g., Invalid license number, unclear documentation..."></textarea>
+                                            <small class="text-muted">This will be shown to the doctor.</small>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Internal Notes</label>
+                                            <textarea name="review_notes" class="form-control" rows="2"
+                                                      placeholder="Internal notes (not shown to doctor)..."></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-danger">
+                                            <i class="bi bi-x-lg"></i> Confirm Rejection
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-check-circle-fill text-success" style="font-size:4rem;"></i>
+            <h4 class="mt-3">No Pending Requests</h4>
+            <p class="text-muted">All verification requests have been processed.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Verification History -->
+<div class="card shadow">
+    <div class="card-header bg-secondary text-white">
+        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Verification History</h5>
+    </div>
+    <div class="card-body">
+        {% if all_requests %}
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Doctor</th>
+                        <th>Email</th>
+                        <th>Submitted</th>
+                        <th>Status</th>
+                        <th>Reviewed By</th>
+                        <th>Reviewed At</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in all_requests %}
+                    <tr>
+                        <td>{{ req.user.display_name | e }}</td>
+                        <td>{{ req.user.email | e }}</td>
+                        <td><small>{{ req.submitted_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                        <td>
+                            {% if req.status == 'approved' %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> Approved</span>
+                            {% elif req.status == 'rejected' %}
+                                <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Rejected</span>
+                            {% elif req.status == 'pending' %}
+                                <span class="badge bg-warning"><i class="bi bi-hourglass-split"></i> Pending</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ req.status | e }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if req.reviewer %}{{ req.reviewer.username | e }}
+                            {% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if req.reviewed_at %}<small>{{ req.reviewed_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                            {% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if req.review_notes or req.rejection_reason %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#notesModal{{ req.id }}">
+                                    <i class="bi bi-file-text"></i> View
+                                </button>
+                                <div class="modal fade" id="notesModal{{ req.id }}" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Review Notes</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                {% if req.rejection_reason %}
+                                                <div class="alert alert-danger">
+                                                    <strong>Rejection Reason:</strong>
+                                                    <p class="mb-0 mt-2">{{ req.rejection_reason | e }}</p>
+                                                </div>
+                                                {% endif %}
+                                                {% if req.review_notes %}
+                                                <div class="mb-0">
+                                                    <strong>Internal Notes:</strong>
+                                                    <p class="mb-0 mt-2">{{ req.review_notes | e }}</p>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted"><p>No verification requests yet.</p></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{# SECURITY FIX: approve confirmation uses data attribute — never JS string interpolation of username #}
+<script nonce="{{ csp_nonce() }}">
+document.querySelectorAll('.approve-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var username = this.dataset.username;   // safe: came from data attr, HTML-escaped by Jinja2
+        var formId   = this.dataset.formId;
+        if (confirm('Approve verification for "' + username + '"?')) {
+            document.getElementById(formId).submit();
+        }
+    });
+});
+</script>
+{% endblock %}

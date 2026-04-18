@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+{% block title %}Patient — {{ patient.display_name | e }}{% endblock %}
+{% block page_title %}Patient Details{% endblock %}
+
+{% block extra_css %}
+<style nonce="{{ csp_nonce() }}">
+.spo2-tile-danger  { background:#fff5f5; border:1px solid #fecaca; }
+.spo2-tile-normal  { background:#f0faff; border:1px solid #b8e0ef; }
+.spo2-val-danger   { font-size:0.95rem; font-weight:700; color:#dc3545; }
+.spo2-val-normal   { font-size:0.95rem; font-weight:700; color:#0369a1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
+    <a href="{{ url_for('doctor.patients') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>All Patients
+    </a>
+    <a href="{{ url_for('doctor.view_patient_demographics', patient_id=patient.id) }}"
+       class="btn btn-outline-info btn-sm">
+        <i class="bi bi-clipboard2-pulse me-1"></i>Health Demographics
+    </a>
+    <a href="{{ url_for('doctor.compare_patients') }}?patient1={{ patient.id }}"
+       class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-bar-chart-line me-1"></i>Compare
+    </a>
+</div>
+
+<div class="row g-4">
+
+    <!-- ══ LEFT: Patient card ══════════════════════════════════════════════ -->
+    <div class="col-lg-3">
+        <div class="card shadow-sm mb-3" style="border-top:4px solid var(--teal);">
+            <div class="card-body text-center py-4">
+                {# SECURITY FIX: null guard on display_name to prevent IndexError #}
+                <div style="width:72px;height:72px;border-radius:50%;
+                            background:linear-gradient(135deg,var(--teal-light),var(--teal));
+                            display:flex;align-items:center;justify-content:center;
+                            color:#fff;font-size:2rem;font-weight:700;margin:0 auto 1rem;">
+                    {{ (patient.display_name or '?')[0] | upper | e }}
+                </div>
+                <h5 class="mb-0">{{ patient.display_name | e }}</h5>
+                <small class="text-muted">@{{ patient.username | e }}</small>
+                <hr>
+                <div class="text-start" style="font-size:0.85rem;">
+                    {#
+                      SECURITY FIX: Patient email removed from doctor view.
+                      Email is contact/admin data, not clinical data. Displaying it:
+                      - Creates PHI exposure risk (screenshots, shoulder-surfing)
+                      - Violates minimum-necessary principle (HIPAA)
+                      Doctors need clinical data, not contact details.
+                      If contact is needed, route through secure messaging.
+                    #}
+                    {% if patient.profile and patient.profile.phone %}
+                    <p class="mb-2">
+                        <i class="bi bi-telephone me-2 text-muted"></i>{{ patient.profile.phone | e }}
+                    </p>
+                    {% endif %}
+                    {% if patient.profile and patient.profile.date_of_birth %}
+                    <p class="mb-2">
+                        <i class="bi bi-calendar me-2 text-muted"></i>
+                        {{ patient.profile.date_of_birth.strftime('%Y-%m-%d') }}
+                    </p>
+                    {% endif %}
+                    {% if patient.profile and patient.profile.gender %}
+                    <p class="mb-1">
+                        <i class="bi bi-person me-2 text-muted"></i>
+                        {{ patient.profile.gender | title | e }}
+                    </p>
+                    {% endif %}
+                </div>
+                <hr>
+                <div class="text-start" style="font-size:0.82rem;">
+                    <small class="text-muted d-block mb-1">Assigned on</small>
+                    <strong>{{ assignment.assigned_at.strftime('%Y-%m-%d') }}</strong>
+                    {% if assignment.notes %}
+                    <div class="alert alert-info mt-2 p-2" style="font-size:0.8rem;border-radius:8px;">
+                        {{ assignment.notes | e }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick stats -->
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="mb-3" style="color:var(--teal);">Quick Stats</h6>
+                <div class="d-flex justify-content-between mb-2" style="font-size:0.88rem;">
+                    <span class="text-muted">Total Files</span>
+                    <strong>{{ data_files|length }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2" style="font-size:0.88rem;">
+                    <span class="text-muted">Analysed</span>
+                    <strong class="text-success">{{ data_files|selectattr('analysis')|list|length }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2" style="font-size:0.88rem;">
+                    <span class="text-muted">OSA Detected</span>
+                    {% set osa_c = namespace(n=0) %}
+                    {% for f in data_files %}{% if f.analysis and f.analysis.osa_detected %}{% set osa_c.n = osa_c.n + 1 %}{% endif %}{% endfor %}
+                    <strong class="text-warning">{{ osa_c.n }}</strong>
+                </div>
+                {% set latest = data_files|selectattr('analysis')|list|first %}
+                {% if latest %}
+                <hr>
+                <small class="text-muted d-block mb-1">Latest AHI</small>
+                <h3 class="mb-0" style="color:var(--teal);">
+                    {{ "%.1f"|format(latest.analysis.ahi_score) }}
+                    <small class="text-muted" style="font-size:0.6em;">events/hr</small>
+                </h3>
+                {% set sev = latest.analysis.severity %}
+                <span class="badge mt-1
+                    {% if sev == 'severe' %}bg-danger
+                    {% elif sev == 'moderate' %}bg-warning text-dark
+                    {% elif sev == 'mild' %}bg-info text-dark
+                    {% else %}bg-success{% endif %}">{{ sev | title | e if sev else '—' }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ RIGHT: Per-file cards ═══════════════════════════════════════════ -->
+    <div class="col-lg-9">
+        {% for file in data_files %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2"
+                 style="background:linear-gradient(135deg,#f4fbfb,#e8f5f5);">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-{% if file.file_type == 'edf' %}waveform{% else %}spreadsheet{% endif %}"
+                       style="color:var(--teal);font-size:1.2rem;"></i>
+                    <div>
+                        {# Filename is from our own upload system (secure_filename applied) — escaping is defence in depth #}
+                        <strong>{{ file.original_filename | e }}</strong>
+                        <small class="text-muted ms-2">{{ file.upload_date.strftime('%Y-%m-%d') }}</small>
+                    </div>
+                </div>
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                    <span class="badge bg-secondary">{{ file.file_type | upper | e }}</span>
+                    {% if file.status == 'completed' %}<span class="badge bg-success">Completed</span>
+                    {% elif file.status == 'processing' %}<span class="badge bg-warning">Processing</span>
+                    {% elif file.status == 'failed' %}<span class="badge bg-danger">Failed</span>
+                    {% else %}<span class="badge bg-secondary">{{ file.status | title | e }}</span>{% endif %}
+                </div>
+            </div>
+
+            <div class="card-body">
+                {% if file.analysis %}
+                {% set a = file.analysis %}
+                {% set feats = file_features.get(file.id, {}) %}
+
+                <!-- OSA result banner -->
+                <div class="alert {% if a.osa_detected %}alert-warning{% else %}alert-success{% endif %}
+                     d-flex align-items-center gap-3 mb-3" style="border-radius:12px;">
+                    <i class="bi {% if a.osa_detected %}bi-exclamation-triangle-fill{% else %}bi-check-circle-fill{% endif %} fs-4 flex-shrink-0"></i>
+                    <div class="flex-grow-1">
+                        <strong>{% if a.osa_detected %}OSA Detected{% else %}No OSA Detected{% endif %}</strong>
+                        &nbsp;&middot;&nbsp;
+                        {% set sev = a.severity %}
+                        <span class="badge
+                            {% if sev == 'severe' %}bg-danger
+                            {% elif sev == 'moderate' %}bg-warning text-dark
+                            {% elif sev == 'mild' %}bg-info text-dark
+                            {% else %}bg-success{% endif %}">{{ sev | title | e if sev else '—' }}</span>
+                        &nbsp;&middot;&nbsp; AHI <strong>{{ "%.1f"|format(a.ahi_score) }}</strong>
+                        &nbsp;&middot;&nbsp; Confidence <strong>{{ "%.0f"|format(a.confidence_score * 100) }}%</strong>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap flex-shrink-0">
+                        <a href="{{ url_for('doctor.view_analysis', analysis_id=a.id) }}"
+                           class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-clipboard-data me-1"></i>Details
+                        </a>
+                        {% if a.status != 'reviewed' %}
+                        <a href="{{ url_for('doctor.review_analysis', analysis_id=a.id) }}"
+                           class="btn btn-sm btn-primary">
+                            <i class="bi bi-pencil me-1"></i>Review
+                        </a>
+                        {% else %}
+                        <span class="badge bg-success align-self-center">
+                            <i class="bi bi-check me-1"></i>Reviewed
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Core metrics — all numeric, safe -->
+                <div class="row g-2 mb-3">
+                    {% for label, val, unit in [
+                        ('AHI', "%.1f"|format(a.ahi_score), 'ev/hr'),
+                        ('Apnea', a.apnea_events or 0, 'events'),
+                        ('Hypopnea', a.hypopnea_events or 0, 'events'),
+                        ('O₂ Desat', "%.1f"|format(a.oxygen_desaturation or 0), '%'),
+                    ] %}
+                    <div class="col-6 col-md-3">
+                        <div class="p-2 rounded text-center" style="background:#f4fbfb;border:1px solid var(--teal-light);">
+                            <div style="font-size:1.25rem;font-weight:700;color:var(--teal);">{{ val }}</div>
+                            <small class="text-muted">{{ label }} <span style="font-size:0.72em;">({{ unit }})</span></small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if file.file_type == 'edf' %}
+                <!-- HRV collapsible -->
+                <div class="mb-2">
+                    <button class="btn btn-sm w-100 text-start d-flex align-items-center justify-content-between"
+                            style="background:#f4fbfb;border:1px solid var(--teal-light);color:var(--teal);border-radius:8px;"
+                            type="button" data-bs-toggle="collapse"
+                            data-bs-target="#hrv-{{ file.id }}" aria-expanded="false">
+                        <span>
+                            <i class="bi bi-heart-pulse me-2"></i><strong>HRV Metrics</strong>
+                            <small class="text-muted ms-2" style="font-size:0.78rem;">
+                                SDNN {{ "%.1f"|format(feats.get('sdnn',0)|float) if feats.get('sdnn') else 'N/A' }} ms
+                                &middot; RMSSD {{ "%.1f"|format(feats.get('rmssd',0)|float) if feats.get('rmssd') else 'N/A' }} ms
+                                &middot; LF/HF {{ "%.2f"|format(feats.get('lf_hf_ratio',0)|float) if feats.get('lf_hf_ratio') else 'N/A' }}
+                            </small>
+                        </span>
+                        <i class="bi bi-chevron-down"></i>
+                    </button>
+                    <div id="hrv-{{ file.id }}" class="collapse">
+                        <div class="pt-3">
+                            <small class="text-muted d-block mb-2"
+                                   style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">
+                                Time Domain
+                            </small>
+                            <div class="row g-2 mb-2">
+                                {% for label, key, unit in [
+                                    ('SDNN','sdnn','ms'),('RMSSD','rmssd','ms'),
+                                    ('pNN50','pnn50','%'),('pNN20','pnn20','%'),
+                                    ('Mean NN','mean_nni','ms'),('CVnni','cvnni','%'),
+                                ] %}
+                                <div class="col-4 col-md-2">
+                                    <div class="p-2 rounded text-center" style="background:#f4fbfb;border:1px solid var(--teal-light);">
+                                        <div style="font-size:0.95rem;font-weight:700;color:var(--teal);">
+                                            {% if feats.get(key) is not none and feats.get(key) != '' %}
+                                                {{ "%.2f"|format(feats.get(key)|float) }}
+                                                <small style="font-size:0.6rem;">{{ unit }}</small>
+                                            {% else %}<span class="text-muted">N/A</span>{% endif %}
+                                        </div>
+                                        <small style="font-size:0.72rem;color:#666;">{{ label }}</small>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted d-block mb-2"
+                                   style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">
+                                Frequency Domain
+                            </small>
+                            <div class="row g-2 mb-2">
+                                {% for label, key, unit in [
+                                    ('LF','lf','ms²'),('HF','hf','ms²'),('LF/HF','lf_hf_ratio',''),
+                                    ('LFnu','lfnu','nu'),('HFnu','hfnu','nu'),('Total P','total_power','ms²'),
+                                ] %}
+                                <div class="col-4 col-md-2">
+                                    <div class="p-2 rounded text-center" style="background:#f8f4ff;border:1px solid #d8cce8;">
+                                        <div style="font-size:0.95rem;font-weight:700;color:var(--purple);">
+                                            {% if feats.get(key) is not none and feats.get(key) != '' %}
+                                                {{ "%.3f"|format(feats.get(key)|float) }}
+                                            {% else %}<span class="text-muted">N/A</span>{% endif %}
+                                        </div>
+                                        <small style="font-size:0.72rem;color:#666;">{{ label }}</small>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted d-block mb-2"
+                                   style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">
+                                Nonlinear
+                            </small>
+                            <div class="row g-2">
+                                {% for label, key in [
+                                    ('SD1','sd1'),('SD2','sd2'),('SD2/SD1','ratio_sd2_sd1'),
+                                    ('CSI','csi'),('CVI','cvi'),('SampEn','sample_entropy'),
+                                ] %}
+                                <div class="col-4 col-md-2">
+                                    <div class="p-2 rounded text-center" style="background:#f0faff;border:1px solid #b8e0ef;">
+                                        <div style="font-size:0.95rem;font-weight:700;color:#0a7fa6;">
+                                            {% if feats.get(key) is not none and feats.get(key) != '' %}
+                                                {{ "%.3f"|format(feats.get(key)|float) }}
+                                            {% else %}<span class="text-muted">N/A</span>{% endif %}
+                                        </div>
+                                        <small style="font-size:0.72rem;color:#666;">{{ label }}</small>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SpO2 collapsible -->
+                <div class="mb-3">
+                    <button class="btn btn-sm w-100 text-start d-flex align-items-center justify-content-between"
+                            style="background:#f0faff;border:1px solid #b8e0ef;color:#0a7fa6;border-radius:8px;"
+                            type="button" data-bs-toggle="collapse"
+                            data-bs-target="#spo2-{{ file.id }}" aria-expanded="false">
+                        <span>
+                            <i class="bi bi-lungs me-2"></i><strong>SpO₂ Metrics</strong>
+                            <small class="text-muted ms-2" style="font-size:0.78rem;">
+                                Mean {{ "%.1f"|format(feats.get('spo2_mean',0)|float) if feats.get('spo2_mean') else 'N/A' }}%
+                                &middot; Min {{ "%.1f"|format(feats.get('spo2_min',0)|float) if feats.get('spo2_min') else 'N/A' }}%
+                                &middot; T&lt;90%: {{ "%.1f"|format(feats.get('time_below_90',0)|float) if feats.get('time_below_90') else 'N/A' }}%
+                            </small>
+                        </span>
+                        <i class="bi bi-chevron-down"></i>
+                    </button>
+                    <div id="spo2-{{ file.id }}" class="collapse">
+                        <div class="pt-3">
+                            <div class="row g-2">
+                                {% for label, key in [
+                                    ('Mean %','spo2_mean'),('Median %','spo2_median'),
+                                    ('Min %','spo2_min'),('Std Dev','spo2_std'),
+                                    ('P5','spo2_p5'),('P10','spo2_p10'),
+                                    ('T&lt;95%','time_below_95'),('T&lt;93%','time_below_93'),
+                                    ('T&lt;90%','time_below_90'),('T&lt;88%','time_below_88'),
+                                    ('T&lt;85%','time_below_85'),('Valid %','valid_data_pct'),
+                                ] %}
+                                <div class="col-4 col-md-2">
+                                    <div class="p-2 rounded text-center {% if 'below' in key %}spo2-tile-danger{% else %}spo2-tile-normal{% endif %}">
+                                        <div class="{% if 'below' in key %}spo2-val-danger{% else %}spo2-val-normal{% endif %}">
+                                            {% if feats.get(key) is not none and feats.get(key) != '' %}
+                                                {{ "%.1f"|format(feats.get(key)|float) }}%
+                                            {% else %}<span class="text-muted">N/A</span>{% endif %}
+                                        </div>
+                                        <small style="font-size:0.72rem;color:#666;">{{ label }}</small>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Action buttons -->
+                <div class="d-flex flex-wrap gap-2">
+                    {% if file.file_type == 'edf' %}
+                    <a href="{{ url_for('doctor.doc_viz_hrv', file_id=file.id) }}"
+                       class="btn btn-sm" style="background:#e8f7f7;color:var(--teal);border:1px solid var(--teal-light);">
+                        <i class="bi bi-heart-pulse me-1"></i>HRV Visualizer
+                    </a>
+                    <a href="{{ url_for('doctor.doc_viz_spo2', file_id=file.id) }}"
+                       class="btn btn-sm" style="background:#e8f4fa;color:#0a7fa6;border:1px solid #b8e0ef;">
+                        <i class="bi bi-lungs me-1"></i>SpO₂ Visualizer
+                    </a>
+                    {#
+                      SECURITY FIX: Raw signal download labelled as PHI data.
+                      Opens a JSON endpoint in a new tab — doctor should be aware
+                      this downloads identifiable waveform data.
+                    #}
+                    <a href="{{ url_for('doctor.api_signals_full', file_id=file.id) }}"
+                       target="_blank"
+                       class="btn btn-sm btn-outline-secondary"
+                       title="Downloads raw + cleaned RR intervals and SpO₂ waveform as JSON (PHI data — handle securely)">
+                        <i class="bi bi-download me-1"></i>Raw Signals <small class="ms-1 text-muted">(JSON)</small>
+                    </a>
+                    {% endif %}
+                    <a href="{{ url_for('doctor.doc_viz_report', file_id=file.id) }}"
+                       class="btn btn-sm" style="background:#f0eaf7;color:var(--purple);border:1px solid #d8cce8;">
+                        <i class="bi bi-file-medical me-1"></i>Full Report
+                    </a>
+                    <a href="{{ url_for('doctor.compare_reports') }}?analysis_a={{ a.id }}"
+                       class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-bar-chart-steps me-1"></i>Compare
+                    </a>
+                </div>
+
+                {% if a.doctor_notes or a.recommendations %}
+                <div class="mt-3 p-3 rounded"
+                     style="background:#f8f9fa;border-left:3px solid var(--teal);font-size:0.85rem;">
+                    {% if a.doctor_notes %}
+                    <small class="text-muted"><i class="bi bi-journal-text me-1"></i>Notes</small>
+                    {# SECURITY FIX: explicit | e escape on doctor-entered text #}
+                    <p class="mb-1 mt-1">{{ (a.doctor_notes[:200]) | e }}{% if a.doctor_notes|length > 200 %}&hellip;{% endif %}</p>
+                    {% endif %}
+                    {% if a.recommendations %}
+                    <small class="text-muted"><i class="bi bi-list-check me-1"></i>Recommendations</small>
+                    <p class="mb-0 mt-1">{{ (a.recommendations[:200]) | e }}{% if a.recommendations|length > 200 %}&hellip;{% endif %}</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% else %}
+                <div class="text-muted text-center py-3" style="font-size:0.88rem;">
+                    <i class="bi bi-clock me-1"></i>Not yet analysed.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>No data files uploaded yet.
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

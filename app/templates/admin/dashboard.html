@@ -1,0 +1,589 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<style>
+.metric-card { border-left: 4px solid; }
+.metric-card.primary { border-left-color: #0d6efd; }
+.metric-card.success { border-left-color: #198754; }
+.metric-card.warning { border-left-color: #ffc107; }
+.metric-card.danger  { border-left-color: #dc3545; }
+.metric-card.info    { border-left-color: #0dcaf0; }
+.metric-card.teal    { border-left-color: var(--teal); }
+.log-entry { font-family: monospace; font-size: 0.82rem; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.status-online { background: #198754; animation: pulse-green 2s infinite; }
+@keyframes pulse-green { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+
+<!-- Hidden data bridge for JS -->
+<div id="stats-data"
+     data-roles="[{{ stats.total_admins }}, {{ stats.total_doctors }}, {{ stats.total_patients }}]"
+     data-severity="[{{ stats.severity_normal }}, {{ stats.severity_mild }}, {{ stats.severity_moderate }}, {{ stats.severity_severe }}]"
+     data-osa="[{{ stats.osa_detected }}, {{ stats.osa_normal }}]"
+     style="display:none;">
+</div>
+
+<div class="row align-items-center mb-2">
+    <div class="col">
+        <h2><i class="bi bi-speedometer2"></i> System Administration &amp; Monitoring</h2>
+        <p class="text-muted mb-0">
+            <span class="status-dot status-online me-1"></span>
+            System Online &nbsp;|&nbsp; Last refresh: <span id="lastRefresh"></span>
+        </p>
+    </div>
+    <div class="col-auto d-flex gap-2">
+        <a href="{{ url_for('admin.verification_requests') }}"
+           class="btn btn-primary btn-sm position-relative">
+            <i class="bi bi-shield-check me-1"></i> Verifications
+            {% if pending_verifications_count and pending_verifications_count > 0 %}
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    {{ pending_verifications_count }}
+                </span>
+            {% endif %}
+        </a>
+        <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+</div>
+<hr>
+
+<!-- ══════════════ PENDING VERIFICATIONS ALERT ══════════════ -->
+{% if pending_verifications_count and pending_verifications_count > 0 %}
+<div class="alert d-flex align-items-center justify-content-between mb-4"
+     style="background:#fff8e1; border:1px solid #ffc107; border-radius:12px;">
+    <div>
+        <i class="bi bi-exclamation-triangle-fill me-2" style="color:#e65100;"></i>
+        <strong>{{ pending_verifications_count }} doctor verification request{{ 's' if pending_verifications_count > 1 else '' }}</strong>
+        waiting for your review.
+    </div>
+    <a href="{{ url_for('admin.verification_requests') }}"
+       class="btn btn-warning btn-sm">
+        <i class="bi bi-shield-check me-1"></i>Review Now
+    </a>
+</div>
+{% endif %}
+
+<!-- ══════════════ SYSTEM HEALTH ══════════════ -->
+<h5 class="text-uppercase text-muted mb-3">
+    <i class="bi bi-heart-pulse"></i> System Health
+</h5>
+<div class="row mb-4">
+    <div class="col-md-2 col-6 mb-2">
+        <div class="card metric-card primary shadow-sm">
+            <div class="card-body py-3">
+                <small class="text-muted">Total Users</small>
+                <h3 class="mb-0">{{ stats.total_users }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-6 mb-2">
+        <div class="card metric-card success shadow-sm">
+            <div class="card-body py-3">
+                <small class="text-muted">Active Users</small>
+                <h3 class="mb-0">{{ stats.active_users }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-6 mb-2">
+        <div class="card metric-card info shadow-sm">
+            <div class="card-body py-3">
+                <small class="text-muted">Doctors</small>
+                <h3 class="mb-0">{{ stats.total_doctors }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-6 mb-2">
+        <div class="card metric-card warning shadow-sm">
+            <div class="card-body py-3">
+                <small class="text-muted">Patients</small>
+                <h3 class="mb-0">{{ stats.total_patients }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-6 mb-2">
+        <div class="card metric-card success shadow-sm">
+            <div class="card-body py-3">
+                <small class="text-muted">Total Files</small>
+                <h3 class="mb-0">{{ stats.total_files }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-6 mb-2">
+        <div class="card metric-card teal shadow-sm">
+            <div class="card-body py-3">
+                <small class="text-muted">Pending Verif.</small>
+                <h3 class="mb-0" style="color:var(--teal);">
+                    {{ pending_verifications_count or 0 }}
+                </h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════ CHARTS ══════════════ -->
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card shadow">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-pie-chart"></i> User Roles</h6>
+            </div>
+            <div class="card-body">
+                <canvas id="rolesChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card shadow">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-bar-chart"></i> Analysis Severity</h6>
+            </div>
+            <div class="card-body">
+                <canvas id="severityChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card shadow">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-graph-up"></i> OSA Detection Rate</h6>
+            </div>
+            <div class="card-body">
+                <canvas id="osaChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════ DOCTOR VERIFICATION REQUESTS ══════════════ -->
+<h5 class="text-uppercase text-muted mb-3">
+    <i class="bi bi-shield-check"></i> Doctor Verification Requests
+</h5>
+<div class="card shadow mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            Pending Approvals
+            {% if pending_requests %}
+                <span class="badge bg-danger ms-2">{{ pending_requests|length }}</span>
+            {% endif %}
+        </h6>
+        <a href="{{ url_for('admin.verification_requests') }}"
+           class="btn btn-sm btn-outline-primary">
+            View All History
+        </a>
+    </div>
+    <div class="card-body p-0">
+        {% if pending_requests %}
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Doctor</th>
+                        <th>Email</th>
+                        <th>Document #</th>
+                        <th>Submitted</th>
+                        <th>Document</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in pending_requests %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div style="width:32px; height:32px; border-radius:50%;
+                                            background:var(--teal); color:#fff;
+                                            display:flex; align-items:center;
+                                            justify-content:center; font-weight:700;
+                                            font-size:0.85rem; flex-shrink:0;">
+                                    {{ req.user.display_name[0].upper() }}
+                                </div>
+                                <div>
+                                    <div class="fw-bold">{{ req.user.display_name }}</div>
+                                    <small class="text-muted">@{{ req.user.username }}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{ req.user.email }}</td>
+                        <td><code>{{ req.document_number or '—' }}</code></td>
+                        <td>
+                            <small>{{ req.submitted_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                        </td>
+                        <td>
+                            {% if req.document_path %}
+                                <span class="badge"
+                                      style="background:#e8f7f7; color:var(--teal-dark);">
+                                    <i class="bi bi-file-earmark-check me-1"></i>Uploaded
+                                </span>
+                            {% else %}
+                                <span class="badge bg-secondary">No file</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <!-- Approve -->
+                            <form method="POST"
+                                  action="{{ url_for('admin.verify_doctor', request_id=req.id) }}"
+                                  class="d-inline"
+                                  onsubmit="return confirm('Approve {{ req.user.username }}?')">
+                                <input type="hidden" name="action" value="approve">
+                                <input type="hidden" name="review_notes" value="Approved via admin dashboard">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-success btn-sm">
+                                    <i class="bi bi-check-lg"></i> Approve
+                                </button>
+                            </form>
+
+                            <!-- Reject — opens modal -->
+                            <button type="button" class="btn btn-danger btn-sm ms-1"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#rejectModal{{ req.id }}">
+                                <i class="bi bi-x-lg"></i> Reject
+                            </button>
+
+                            <!-- Reject Modal -->
+                            <div class="modal fade" id="rejectModal{{ req.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content" style="border-radius:16px;">
+                                        <div class="modal-header"
+                                             style="background:linear-gradient(135deg,var(--teal-dark),var(--teal));
+                                                    color:#fff; border-radius:16px 16px 0 0;">
+                                            <h5 class="modal-title">
+                                                <i class="bi bi-x-circle me-2"></i>Reject Verification
+                                            </h5>
+                                            <button type="button"
+                                                    class="btn-close btn-close-white"
+                                                    data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <form method="POST"
+                                              action="{{ url_for('admin.verify_doctor', request_id=req.id) }}">
+                                            <input type="hidden" name="action" value="reject">
+                                            <input type="hidden" name="csrf_token"
+                                                   value="{{ csrf_token() }}">
+                                            <div class="modal-body p-4">
+                                                <p class="text-muted mb-3">
+                                                    Rejecting verification for
+                                                    <strong>{{ req.user.username }}</strong>.
+                                                </p>
+                                                <div class="mb-3">
+                                                    <label class="form-label">
+                                                        Rejection Reason
+                                                        <span class="text-danger">*</span>
+                                                    </label>
+                                                    <textarea name="rejection_reason"
+                                                              class="form-control" rows="3"
+                                                              required
+                                                              placeholder="e.g. License number invalid, document unclear..."></textarea>
+                                                </div>
+                                                <div class="mb-2">
+                                                    <label class="form-label">
+                                                        Internal Notes
+                                                    </label>
+                                                    <textarea name="review_notes"
+                                                              class="form-control" rows="2"
+                                                              placeholder="Internal notes (not shown to doctor)..."></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button"
+                                                        class="btn btn-outline-secondary"
+                                                        data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-danger">
+                                                    <i class="bi bi-x-lg me-1"></i>Confirm Reject
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+            <i class="bi bi-check-circle"
+               style="font-size:2rem; color:var(--teal-light);"></i>
+            <p class="mt-2 mb-0">No pending verification requests.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ══════════════ USER MANAGEMENT ══════════════ -->
+<h5 class="text-uppercase text-muted mb-3">
+    <i class="bi bi-people"></i> User Management &amp; Access Control
+</h5>
+<div class="card shadow mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">All Users</h6>
+        <input type="text" id="userSearch"
+               class="form-control form-control-sm"
+               style="width:200px"
+               placeholder="Search users...">
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0" id="usersTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Verification</th>
+                        <th>Status</th>
+                        <th>Joined</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.id }}</td>
+                        <td>
+                            <strong>{{ user.display_name }}</strong>
+                            {% if user.username != user.display_name %}
+                            <br><small class="text-muted">@{{ user.username }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.email }}</td>
+                        <td>
+                            {% if user.role == 'admin' %}
+                                <span class="badge bg-danger">Admin</span>
+                            {% elif user.role == 'doctor' %}
+                                <span class="badge bg-primary">Doctor</span>
+                            {% else %}
+                                <span class="badge bg-success">Patient</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.role == 'doctor' %}
+                                {% if user.verification_status == 'approved' %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check me-1"></i>Verified
+                                    </span>
+                                {% elif user.verification_status == 'pending' %}
+                                    <span class="badge"
+                                          style="background:var(--lavender); color:var(--purple);">
+                                        <i class="bi bi-hourglass me-1"></i>Pending
+                                    </span>
+                                {% elif user.verification_status == 'rejected' %}
+                                    <span class="badge bg-danger">Rejected</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Not Submitted</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-danger">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            {% if user.role != 'admin' %}
+                            <form method="POST"
+                                  action="{{ url_for('admin.toggle_user', user_id=user.id) }}"
+                                  class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit"
+                                        class="btn btn-sm {% if user.is_active %}btn-warning{% else %}btn-success{% endif %}"
+                                        style="font-size:0.75rem; padding:2px 8px;">
+                                    {% if user.is_active %}Deactivate{% else %}Activate{% endif %}
+                                </button>
+                            </form>
+                            <form method="POST"
+                                  action="{{ url_for('admin.change_role', user_id=user.id) }}"
+                                  class="d-inline ms-1">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <select name="role"
+                                        class="form-select form-select-sm d-inline-block"
+                                        style="width:90px; font-size:0.75rem;"
+                                        onchange="this.form.submit()">
+                                    <option value="patient"
+                                            {% if user.role == 'patient' %}selected{% endif %}>
+                                        Patient
+                                    </option>
+                                    <option value="doctor"
+                                            {% if user.role == 'doctor' %}selected{% endif %}>
+                                        Doctor
+                                    </option>
+                                </select>
+                            </form>
+                            {% else %}
+                                <span class="text-muted small">Protected</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════ AUDIT LOG ══════════════ -->
+<h5 class="text-uppercase text-muted mb-3">
+    <i class="bi bi-journal-text"></i> Audit Log
+</h5>
+<div class="card shadow mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Recent System Activity</h6>
+        <select id="logFilter" class="form-select form-select-sm" style="width:140px">
+            <option value="all">All Events</option>
+            <option value="LOGIN">Logins</option>
+            <option value="UPLOAD">Uploads</option>
+            <option value="ANALYSIS">Analyses</option>
+            <option value="REVIEW">Reviews</option>
+            <option value="ROLE">Role Changes</option>
+        </select>
+    </div>
+    <div class="card-body p-0" style="max-height:320px; overflow-y:auto;">
+        <table class="table table-sm table-hover mb-0" id="auditTable">
+            <thead class="table-light sticky-top">
+                <tr>
+                    <th>Time</th>
+                    <th>Event</th>
+                    <th>User</th>
+                    <th>Details</th>
+                    <th>IP</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in audit_logs %}
+                <tr class="log-entry" data-event="{{ log.event_type }}">
+                    <td class="text-muted">
+                        {{ log.timestamp.strftime('%m-%d %H:%M:%S') }}
+                    </td>
+                    <td>
+                        {% if log.event_type == 'LOGIN' %}
+                            <span class="badge bg-success">LOGIN</span>
+                        {% elif log.event_type == 'UPLOAD' %}
+                            <span class="badge bg-primary">UPLOAD</span>
+                        {% elif log.event_type == 'ANALYSIS' %}
+                            <span class="badge bg-info">ANALYSIS</span>
+                        {% elif log.event_type == 'REVIEW' %}
+                            <span class="badge bg-warning">REVIEW</span>
+                        {% elif log.event_type == 'ROLE' %}
+                            <span class="badge bg-danger">ROLE</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ log.event_type }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ log.username }}</td>
+                    <td>{{ log.details }}</td>
+                    <td class="text-muted">{{ log.ip_address or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-3">
+                        No audit logs yet.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ══════════════ ASSIGNMENTS & PERFORMANCE ══════════════ -->
+<div class="row mb-4">
+    <div class="col-md-6 mb-3">
+        <div class="card shadow">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-link-45deg"></i> Doctor–Patient Assignments
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div style="max-height:250px; overflow-y:auto;">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>Doctor</th>
+                                <th>Patient</th>
+                                <th>Assigned</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in assignments %}
+                            <tr>
+                                <td>{{ a.doctor.display_name }}</td>
+                                <td>{{ a.patient.display_name }}</td>
+                                <td>{{ a.assigned_at.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    {% if a.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">
+                                    No assignments yet
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <div class="card shadow">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-activity"></i> Analysis Performance
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center mb-3">
+                    <div class="col-4">
+                        <h4 class="text-success">{{ stats.completed_analyses }}</h4>
+                        <small class="text-muted">Completed</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 class="text-warning">{{ stats.pending_analyses }}</h4>
+                        <small class="text-muted">Pending</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 class="text-primary">{{ stats.reviewed_analyses }}</h4>
+                        <small class="text-muted">Reviewed</small>
+                    </div>
+                </div>
+                <hr>
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h4 class="text-danger">{{ stats.osa_detected }}</h4>
+                        <small class="text-muted">OSA Detected</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-success">{{ stats.osa_normal }}</h4>
+                        <small class="text-muted">Normal Results</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/admin_dashboard.js') }}"></script>
+{% endblock %}

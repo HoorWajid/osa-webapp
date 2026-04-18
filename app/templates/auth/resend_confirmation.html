@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Resend Confirmation{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card shadow-sm" style="border-top:4px solid var(--teal);border-radius:12px;">
+            <div class="card-body p-5">
+                <div class="text-center mb-4">
+                    <div style="width:56px;height:56px;border-radius:50%;
+                                background:linear-gradient(135deg,#e8f4fa,#0a7fa6);
+                                display:flex;align-items:center;justify-content:center;
+                                margin:0 auto 1rem;font-size:1.6rem;color:#fff;">
+                        <i class="bi bi-envelope-arrow-up"></i>
+                    </div>
+                    <h3 class="mb-1" style="font-weight:700;">Resend Confirmation</h3>
+                    <p class="text-muted" style="font-size:0.9rem;">
+                        Enter your email to receive a new confirmation link.
+                    </p>
+                </div>
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-4">
+                        {{ form.email.label(class="form-label fw-semibold") }}
+                        <div class="input-group">
+                            <span class="input-group-text bg-white">
+                                <i class="bi bi-envelope" style="color:var(--teal);"></i>
+                            </span>
+                            {{ form.email(class="form-control form-control-lg",
+                               placeholder="your@email.com") }}
+                        </div>
+                        {% if form.email.errors %}
+                        <div class="text-danger mt-1"><small>{{ form.email.errors[0] }}</small></div>
+                        {% endif %}
+                    </div>
+                    <div class="d-grid mb-3">
+                        <button type="submit" class="btn btn-primary btn-lg"
+                                style="background:var(--teal);border-color:var(--teal);">
+                            <i class="bi bi-send me-1"></i>Resend Confirmation
+                        </button>
+                    </div>
+                </form>
+                <div class="text-center mt-2">
+                    <a href="{{ url_for('auth.login') }}" class="text-decoration-none"
+                       style="color:var(--teal);font-size:0.9rem;">
+                        <i class="bi bi-arrow-left me-1"></i>Back to Login
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
