@@ -251,7 +251,6 @@
     "apnea_events": {{ data_file.analysis.apnea_events or 0 }},
     "hypopnea_events": {{ data_file.analysis.hypopnea_events or 0 }},
     "oxygen_desaturation": {{ data_file.analysis.oxygen_desaturation or 0 }},
-    "snoring_intensity": {{ data_file.analysis.snoring_intensity or 0 }},
     "completed_at": "{{ data_file.analysis.completed_at.strftime('%Y-%m-%d %H:%M') if data_file.analysis.completed_at else 'N/A' }}",
     "file_name": "{{ data_file.original_filename }}",
     "file_type": "{{ data_file.file_type }}",

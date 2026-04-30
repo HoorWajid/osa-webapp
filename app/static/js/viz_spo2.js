@@ -17,11 +17,16 @@ document.addEventListener('DOMContentLoaded', function () {
         border:    '#d0ecee',
     };
 
+    // Jinja tojson serialises Python NaN/Infinity as null; guard both null and
+    // non-finite numbers (Infinity/-Infinity) so they never reach chart datasets.
     function v(key, dec = 2) {
         const val = features[key];
-        if (val === undefined || val === null || isNaN(val)) return null;
-        return parseFloat(parseFloat(val).toFixed(dec));
+        if (val === undefined || val === null) return null;
+        const n = Number(val);
+        if (!Number.isFinite(n)) return null;
+        return parseFloat(n.toFixed(dec));
     }
+
     function fmt(val, unit = '', fallback = 'N/A') {
         return val === null ? fallback : val + (unit ? ' ' + unit : '');
     }
@@ -42,6 +47,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (val >= 88) return 'warning';
         return 'danger';
     }
+
     function spo2Label(val) {
         if (val === null) return 'No data';
         if (val >= 95) return 'Normal';
@@ -50,27 +56,48 @@ document.addEventListener('DOMContentLoaded', function () {
         return 'Severe';
     }
 
+    function chartDefaults(extra) {
+        return Object.assign({
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 400 },
+        }, extra);
+    }
+
+    // Draw a centred "No data" message directly on a canvas
+    function _drawNoData(canvas, msg) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.fillStyle = '#aaa';
+        ctx.font = '14px Segoe UI, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(msg || 'No data available', canvas.width / 2, canvas.height / 2);
+        ctx.restore();
+    }
+
     // ── Key metric tiles ─────────────────────────────────────────────────────
     const mean  = v('spo2_mean');
     const min   = v('spo2_min');
     const max   = v('spo2_max');
     const med   = v('spo2_median');
     const std   = v('spo2_std');
-    const odi   = parseFloat((analysis.oxygen_desaturation || 0).toFixed(1));
+    const odi   = parseFloat(((analysis.oxygen_desaturation) || 0).toFixed(1));
     const t90   = v('time_below_90');
     const t88   = v('time_below_88');
     const hours = v('recording_hours', 1);
 
     const tilesContainer = document.getElementById('spo2Tiles');
     const tileItems = [
-        { val: fmt(mean, '%'), label: 'Mean SpO₂', color: spo2Color(mean), extra: spo2Label(mean) },
-        { val: fmt(min, '%'),  label: 'Min SpO₂',  color: spo2Color(min),  extra: spo2Label(min) },
-        { val: fmt(max, '%'),  label: 'Max SpO₂',  color: C.green,         extra: 'Peak' },
-        { val: fmt(med, '%'),  label: 'Median SpO₂', color: spo2Color(med), extra: spo2Label(med) },
-        { val: fmt(std, '%'),  label: 'Std Dev',   color: C.teal,          extra: std !== null && std > 3 ? 'High Variability' : 'Stable' },
-        { val: fmt(odi, '%'),  label: 'ODI',       color: odi > 20 ? C.red : odi > 5 ? C.orange : C.green, extra: odi > 20 ? 'High' : odi > 5 ? 'Moderate' : 'Normal' },
-        { val: fmt(t90, '%'),  label: 'Time <90%', color: t90 !== null && t90 > 5 ? C.red : C.teal, extra: 'of recording' },
-        { val: fmt(hours, 'h'), label: 'Recording', color: C.teal,         extra: 'Duration' },
+        { val: fmt(mean, '%'), label: 'Mean SpO₂',  color: spo2Color(mean), extra: spo2Label(mean) },
+        { val: fmt(min,  '%'), label: 'Min SpO₂',   color: spo2Color(min),  extra: spo2Label(min) },
+        { val: fmt(max,  '%'), label: 'Max SpO₂',   color: C.green,         extra: 'Peak' },
+        { val: fmt(med,  '%'), label: 'Median SpO₂',color: spo2Color(med),  extra: spo2Label(med) },
+        { val: fmt(std,  '%'), label: 'Std Dev',    color: C.teal,          extra: std !== null && std > 3 ? 'High Variability' : 'Stable' },
+        { val: fmt(odi,  '%'), label: 'ODI',        color: odi > 20 ? C.red : odi > 5 ? C.orange : C.green, extra: odi > 20 ? 'High' : odi > 5 ? 'Moderate' : 'Normal' },
+        { val: fmt(t90,  '%'), label: 'Time <90%',  color: t90 !== null && t90 > 5 ? C.red : C.teal, extra: 'of recording' },
+        { val: fmt(hours, 'h'), label: 'Recording', color: C.teal,           extra: 'Duration' },
     ];
     tilesContainer.innerHTML = tileItems.map(t => `
         <div class="col-6 col-sm-4 col-md-3 col-xl-auto" style="flex:1;min-width:120px;max-width:180px;">
@@ -88,8 +115,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const pctValues = pctKeys.map(k => v(k));
     const hasPercentiles = pctValues.some(x => x !== null);
 
-    const ctxPct = document.getElementById('chartPercentiles').getContext('2d');
-    new Chart(ctxPct, {
+    const pctCanvas = document.getElementById('chartPercentiles');
+    pctCanvas.style.height = '220px';
+
+    new Chart(pctCanvas.getContext('2d'), {
         type: 'line',
         data: {
             labels: pctLabels,
@@ -104,6 +133,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 pointRadius: 6,
                 pointHoverRadius: 9,
                 tension: 0.4,
+                spanGaps: true,
             }, {
                 label: 'Normal Threshold (95%)',
                 data: Array(7).fill(95),
@@ -120,36 +150,40 @@ document.addEventListener('DOMContentLoaded', function () {
                 borderDash: [6, 4],
                 pointRadius: 0,
                 fill: false,
-            }]
+            }],
         },
-        options: {
-            responsive: true,
+        options: chartDefaults({
             interaction: { mode: 'index', intersect: false },
             plugins: {
                 legend: { position: 'top' },
                 tooltip: {
                     callbacks: {
-                        label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y.toFixed(1) + '%' : 'N/A'}`
-                    }
-                }
+                        label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y.toFixed(1) + '%' : 'N/A'}`,
+                    },
+                },
             },
             scales: {
                 y: {
-                    min: hasPercentiles ? Math.max(60, Math.min(...pctValues.filter(Boolean)) - 5) : 80,
+                    min: hasPercentiles
+                        ? Math.max(60, Math.min(...pctValues.filter(x => x !== null)) - 5)
+                        : 80,
                     max: 101,
                     grid: { color: '#eef7f7' },
-                    ticks: { callback: v => v + '%' }
+                    ticks: { callback: val => val + '%' },
                 },
-                x: { grid: { display: false } }
-            }
-        }
+                x: { grid: { display: false } },
+            },
+        }),
     });
 
     // ── ODI gauge (doughnut) ──────────────────────────────────────────────────
-    const ctxODI = document.getElementById('chartODI').getContext('2d');
+    const odiCanvas = document.getElementById('chartODI');
+    odiCanvas.style.height = '200px';
+
     const odiNorm  = Math.min(odi, 100);
     const odiColor = odi > 20 ? C.red : odi > 10 ? C.orange : odi > 5 ? '#f0c040' : C.green;
-    new Chart(ctxODI, {
+
+    new Chart(odiCanvas.getContext('2d'), {
         type: 'doughnut',
         data: {
             labels: ['Desaturated', 'Normal'],
@@ -157,16 +191,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 data: [odiNorm, Math.max(100 - odiNorm, 0)],
                 backgroundColor: [odiColor, '#eef7f7'],
                 borderWidth: 0,
-                cutout: '70%'
-            }]
+                cutout: '70%',
+            }],
         },
-        options: {
-            responsive: true,
+        options: chartDefaults({
             plugins: {
                 legend: { display: false },
-                tooltip: { callbacks: { label: ctx => ctx.label + ': ' + (ctx.label === 'Desaturated' ? odi + '%' : (100 - odi).toFixed(1) + '%') } }
-            }
-        },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ctx.label + ': ' + (ctx.label === 'Desaturated'
+                            ? odi + '%'
+                            : (100 - odi).toFixed(1) + '%'),
+                    },
+                },
+            },
+        }),
         plugins: [{
             id: 'centerLabel',
             afterDraw(chart) {
@@ -181,8 +220,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 ctx.fillStyle = '#5a7a7a';
                 ctx.fillText('ODI', left + width / 2, top + height / 2 + 14);
                 ctx.restore();
-            }
-        }]
+            },
+        }],
     });
 
     // ODI interpretation
@@ -194,13 +233,15 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('odiInterpretation').textContent = odiTxt;
 
     // ── Desaturation time bar chart ───────────────────────────────────────────
-    const thresholds = ['<85%', '<88%', '<90%', '<93%', '<95%', '≥95%'];
-    const threshKeys = ['time_below_85', 'time_below_88', 'time_below_90', 'time_below_93', 'time_below_95', 'time_above_95'];
-    const threshVals = threshKeys.map(k => v(k, 1));
+    const thresholds  = ['<85%', '<88%', '<90%', '<93%', '<95%', '≥95%'];
+    const threshKeys  = ['time_below_85', 'time_below_88', 'time_below_90', 'time_below_93', 'time_below_95', 'time_above_95'];
+    const threshVals  = threshKeys.map(k => v(k, 1));
     const threshColors = [C.red, '#e67e22', C.orange, '#f0c040', C.tealLight, C.green];
 
-    const ctxDesat = document.getElementById('chartDesatTime').getContext('2d');
-    new Chart(ctxDesat, {
+    const desatCanvas = document.getElementById('chartDesatTime');
+    desatCanvas.style.height = '260px';
+
+    new Chart(desatCanvas.getContext('2d'), {
         type: 'bar',
         data: {
             labels: thresholds,
@@ -211,60 +252,68 @@ document.addEventListener('DOMContentLoaded', function () {
                 borderColor: threshColors,
                 borderWidth: 2,
                 borderRadius: 8,
-            }]
+            }],
         },
-        options: {
+        options: chartDefaults({
             indexAxis: 'y',
-            responsive: true,
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    callbacks: { label: ctx => `${ctx.parsed.x !== null ? ctx.parsed.x.toFixed(1) : 'N/A'}% of recording time` }
-                }
+                    callbacks: {
+                        label: ctx => `${ctx.parsed.x !== null ? ctx.parsed.x.toFixed(1) : 'N/A'}% of recording time`,
+                    },
+                },
             },
             scales: {
                 x: {
-                    beginAtZero: true, max: 100,
+                    beginAtZero: true,
+                    max: 100,
                     grid: { color: '#eef7f7' },
-                    ticks: { callback: v => v + '%' }
+                    ticks: { callback: val => val + '%' },
                 },
-                y: { grid: { display: false } }
-            }
-        }
+                y: { grid: { display: false } },
+            },
+        }),
     });
 
     // ── Zone distribution (doughnut) ─────────────────────────────────────────
-    const t85  = v('time_below_85', 1)  || 0;
-    const t88v = v('time_below_88', 1)  || 0;
-    const t90v = v('time_below_90', 1)  || 0;
-    const t95  = v('time_below_95', 1)  || 0;
-    const tAbove95 = v('time_above_95', 1) || (100 - t95);
+    const t85     = v('time_below_85', 1)  || 0;
+    const t88v    = v('time_below_88', 1)  || 0;
+    const t90v    = v('time_below_90', 1)  || 0;
+    const t95     = v('time_below_95', 1)  || 0;
 
-    const severe    = t85;
-    const moderate  = Math.max(t88v - t85, 0);
-    const mild      = Math.max(t90v - t88v, 0);
-    const normal    = Math.max(100 - t90v, 0);
+    const severe   = t85;
+    const moderate = Math.max(t88v - t85, 0);
+    const mild     = Math.max(t90v - t88v, 0);
+    const normal   = Math.max(100 - t90v, 0);
+    const zoneData = [normal, mild, moderate, severe];
+    const zoneSum  = zoneData.reduce((a, b) => a + b, 0);
 
-    const ctxZones = document.getElementById('chartZones').getContext('2d');
-    new Chart(ctxZones, {
-        type: 'doughnut',
-        data: {
-            labels: ['Normal (≥90%)', 'Mild Hypoxemia (88–90%)', 'Moderate (85–88%)', 'Severe (<85%)'],
-            datasets: [{
-                data: [Math.max(normal, 0), Math.max(mild, 0), Math.max(moderate, 0), Math.max(severe, 0)],
-                backgroundColor: [C.green, '#f0c040', C.orange, C.red],
-                borderWidth: 2,
-                borderColor: '#fff',
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { position: 'bottom', labels: { font: { size: 11 } } },
-                tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.toFixed(1)}%` } }
-            }
-        }
-    });
+    const zonesCanvas = document.getElementById('chartZones');
+    zonesCanvas.style.height = '260px';
+
+    if (zoneSum < 0.1) {
+        _drawNoData(zonesCanvas, 'Zone data not available');
+    } else {
+        new Chart(zonesCanvas.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Normal (≥90%)', 'Mild Hypoxemia (88–90%)', 'Moderate (85–88%)', 'Severe (<85%)'],
+                datasets: [{
+                    data: zoneData,
+                    backgroundColor: [C.green, '#f0c040', C.orange, C.red],
+                    borderWidth: 2,
+                    borderColor: '#fff',
+                }],
+            },
+            options: chartDefaults({
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { size: 11 } } },
+                    tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.toFixed(1)}%` } },
+                },
+            }),
+        });
+    }
 
     // Zones interpretation
     const warnText = severe > 5
@@ -284,12 +333,21 @@ document.addEventListener('DOMContentLoaded', function () {
     const waveSection = document.getElementById('spo2WaveformSection');
     const waveStatus  = document.getElementById('waveformStatus');
 
+    // Hide the canvas wrapper until we have data — avoids blank 280 px gap.
+    const waveCanvas     = document.getElementById('chartSpo2Waveform');
+    const waveCanvasWrap = waveCanvas ? waveCanvas.parentElement : null;
+    if (waveCanvasWrap) waveCanvasWrap.style.display = 'none';
+
     async function buildWaveform() {
         if (!signalApi) {
             if (waveSection) waveSection.style.display = 'none';
             return;
         }
-        if (waveStatus) waveStatus.textContent = 'Loading signal data…';
+        if (waveStatus) {
+            waveStatus.innerHTML =
+                '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' +
+                'Loading signal data…';
+        }
 
         let sig = null;
         try {
@@ -301,8 +359,6 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        // Patient endpoint: sig.spo2 = clean only
-        // Doctor/Admin endpoint: sig.spo2_raw + sig.spo2_clean
         const spo2Clean = doctorView ? (sig.spo2_clean || []) : (sig.spo2 || []);
         const spo2Raw   = doctorView ? (sig.spo2_raw   || []) : [];
 
@@ -311,15 +367,17 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
+        // Spinner done — show canvas wrapper and hide status text
+        if (waveCanvasWrap) waveCanvasWrap.style.display = '';
         if (waveStatus) waveStatus.style.display = 'none';
 
-        // ── Build cleaning audit badge (doctor/admin only) ────────────────
+        // ── Doctor cleaning audit badge ──────────────────────────────────
         if (doctorView) {
             const auditEl = document.getElementById('spo2CleaningAudit');
             if (auditEl) {
-                const cp = sig.spo2_cleaning_params || {};
+                const cp             = sig.spo2_cleaning_params || {};
                 const invalidRemoved = sig.spo2_invalid_removed || 0;
-                const validPct       = sig.spo2_valid_pct  != null ? sig.spo2_valid_pct.toFixed(1) : '—';
+                const validPct       = sig.spo2_valid_pct != null ? sig.spo2_valid_pct.toFixed(1) : '—';
                 auditEl.innerHTML =
                     `<div class="alert alert-secondary" style="font-size:0.8rem;border-radius:12px;">` +
                     `<strong><i class="bi bi-gear me-1"></i>SpO₂ Cleaning Pipeline:</strong><br>` +
@@ -338,24 +396,23 @@ document.addEventListener('DOMContentLoaded', function () {
         const MAX_RENDER = 2000;
         function subsample(arr) {
             if (!arr || !arr.length) return { vals: [], labels: [] };
-            const step  = Math.max(1, Math.floor(arr.length / MAX_RENDER));
-            const vals  = [];
+            const step   = Math.max(1, Math.floor(arr.length / MAX_RENDER));
+            const vals   = [];
             const labels = [];
             for (let i = 0; i < arr.length; i += step) {
                 vals.push(arr[i]);
-                // Label as minutes elapsed (1 Hz after downsampling)
                 labels.push((i / 60).toFixed(1));
             }
             return { vals, labels };
         }
 
-        const cleanSub = subsample(spo2Clean);
-        const rawSub   = subsample(spo2Raw);
+        const cleanSub   = subsample(spo2Clean);
+        const rawSub     = subsample(spo2Raw);
         const timeLabels = cleanSub.labels.length ? cleanSub.labels : rawSub.labels;
 
         // ── Waveform chart ────────────────────────────────────────────────
-        const ctxWave = document.getElementById('chartSpo2Waveform');
-        if (!ctxWave) return;
+        if (!waveCanvas) return;
+        waveCanvas.style.height = '280px';
 
         const datasets = [];
 
@@ -377,14 +434,13 @@ document.addEventListener('DOMContentLoaded', function () {
             data:            cleanSub.vals,
             borderColor:     C.teal,
             backgroundColor: C.teal + '18',
-            borderWidth:     doctorView ? 1.5 : 1.5,
+            borderWidth:     1.5,
             pointRadius:     0,
             tension:         0.15,
             fill:            true,
             order:           1,
         });
 
-        // Threshold reference lines
         datasets.push({
             label:       '90% threshold',
             data:        new Array(timeLabels.length).fill(90),
@@ -406,12 +462,15 @@ document.addEventListener('DOMContentLoaded', function () {
             order:       4,
         });
 
-        new Chart(ctxWave.getContext('2d'), {
+        const yMin = spo2Clean.length
+            ? Math.max(60, Math.floor(spo2Clean.reduce((a, val) => (val && val < a ? val : a), 100) - 5))
+            : 75;
+
+        new Chart(waveCanvas.getContext('2d'), {
             type: 'line',
             data: { labels: timeLabels, datasets },
-            options: {
-                responsive: true,
-                animation:  false,
+            options: chartDefaults({
+                animation: false,
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: { position: 'top', labels: { font: { size: 11 } } },
@@ -419,23 +478,23 @@ document.addEventListener('DOMContentLoaded', function () {
                         callbacks: {
                             title: ctx => `t = ${ctx[0].label} min`,
                             label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(1) + ' %' : '—'}`,
-                        }
-                    }
+                        },
+                    },
                 },
                 scales: {
                     x: {
                         title: { display: true, text: 'Time (minutes)' },
                         ticks: { maxTicksLimit: 10 },
-                        grid:  { color: '#eef7f7' }
+                        grid:  { color: '#eef7f7' },
                     },
                     y: {
                         title: { display: true, text: 'SpO₂ (%)' },
-                        min: Math.max(60, Math.floor(spo2Clean.reduce((a, v) => v && v < a ? v : a, 100) - 5)),
-                        max: 100,
-                        grid: { color: '#eef7f7' }
-                    }
-                }
-            }
+                        min:   yMin,
+                        max:   100,
+                        grid:  { color: '#eef7f7' },
+                    },
+                },
+            }),
         });
     }
 
