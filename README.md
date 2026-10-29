@@ -8,16 +8,35 @@ Final Year Project, BS Data Science / BS Artificial Intelligence, Pak-Austria Fa
 
 ## 📸 Demo
 
-Upload a sleep recording, watch the analysis run, and get results in a dashboard and PDF report.
+Upload a sleep recording, watch the analysis run, and get results in a dashboard and PDF report. Here is a quick tour of the app, in the order a user would experience it.
 
-**What you'll see in the app:**
+### 1️⃣ Landing page
+<p align="center"><img src="demo/landing_page.png" alt="Landing page" width="800"></p>
 
-- **Landing page:** quick intro with Login / Get Started
-- **Patient dashboard:** uploaded files, analyses, assigned doctors and quick actions
-- **Patient oxygen report:** plain-language oxygen score (for example, 90 / 100 "Healthy oxygen"), average SpO₂, lowest dip and dips per hour
-- **Doctor SpO₂ dashboard:** AHI, severity, mean and minimum SpO₂, ODI and CT90
-- **Admin monitoring:** user roles, severity distribution, OSA detection rate, doctor verification requests and audit log
+### 2️⃣ Patient: upload data and get results
 
+| Dashboard | Upload sleep data |
+|:---:|:---:|
+| <img src="demo/patient_dashboard.png" width="420"> | <img src="demo/patient_dashboard_upload_file.png" width="420"> |
+| **Health profile** | **SpO₂ / oxygen report** |
+| <img src="demo/patient_dashboard_health_profile.png" width="420"> | <img src="demo/patient_dashboard_spo2_report.png" width="420"> |
+
+### 3️⃣ Doctor: review and compare patients
+
+| Dashboard | My patients |
+|:---:|:---:|
+| <img src="demo/doctor_dashboard.png" width="420"> | <img src="demo/doctor_dashboard_view_patients.png" width="420"> |
+| **Compare patients** | **SpO₂ & desaturation report** |
+| <img src="demo/doctor_dashboard_compare_patients.png" width="420"> | <img src="demo/doctor_dashboard_spo2_report.png" width="420"> |
+
+### 4️⃣ Admin: monitor, verify and audit
+
+| System monitoring & analytics | Doctor verification |
+|:---:|:---:|
+| <img src="demo/Admin_dashboard.png" width="420"> | <img src="demo/Admin_dashboard_verification.png" width="420"> |
+
+**Audit log**
+<p align="center"><img src="demo/Admin_dashboard_audit_log.png" alt="Admin audit log" width="800"></p>
 
 ---
 
@@ -57,10 +76,11 @@ ML inference takes under 1 second. A full 8-hour recording is processed in about
 | Member | Roll No. | Program | Role |
 |---|---|---|---|
 | **Hoor-ul-ain Wajid** | B22F0068DS004 | BS Data Science | Backend development & signal processing (HRV / SpO₂ feature extraction) |
-| **Maheen Shahid** | B22F0945DS025 | BS Data Science | Machine learning: model training, SMOTE & evaluation (Random Forest, LightGBM) |
+| **Maheen Shahid** | B22F0944DS025 | BS Data Science | Machine learning: model training, SMOTE & evaluation (Random Forest, LightGBM) |
 | **Muhammad Asjad** | B21F0179AI024 | BS Artificial Intelligence | Frontend dashboards, testing & deployment |
 
 **Academic Supervisor:** Dr. Shahnawaz Qureshi
+**Industry Supervisor:** Dr. Wajid Aziz, Abbas Institute of Medical Sciences, Muzaffarabad
 
 ---
 
@@ -86,8 +106,8 @@ flowchart LR
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/<your-username>/ApneaSense.git
-cd ApneaSense
+git clone https://github.com/HoorWajid/osa-webapp.git
+cd osa-webapp
 
 # 2. Create and activate a virtual environment
 python -m venv venv
