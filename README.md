@@ -18,7 +18,6 @@ Upload a sleep recording, watch the analysis run, and get results in a dashboard
 - **Doctor SpO₂ dashboard:** AHI, severity, mean and minimum SpO₂, ODI and CT90
 - **Admin monitoring:** user roles, severity distribution, OSA detection rate, doctor verification requests and audit log
 
-> 🎥 *Add screenshots or a short GIF of the upload → analysis → report flow here.*
 
 ---
 
@@ -62,7 +61,6 @@ ML inference takes under 1 second. A full 8-hour recording is processed in about
 | **Muhammad Asjad** | B21F0179AI024 | BS Artificial Intelligence | Frontend dashboards, testing & deployment |
 
 **Academic Supervisor:** Dr. Shahnawaz Qureshi
-**Industry Supervisor:** Dr. Wajid Aziz, Abbas Institute of Medical Sciences, Muzaffarabad
 
 ---
 
